@@ -4,7 +4,7 @@ Goal: confirm how Bungie's API reports each player state before writing the clas
 
 ## Setup
 
-1. Register an app at https://www.bungie.net/en/Application (OAuth type can be "Not applicable" for the probe). Copy the API key.
+1. Register an app at https://www.bungie.net/en/Application (OAuth type can be "Not applicable" for the probe). The API key is shown on the app page after creation. The Origin header and OAuth settings are not needed for the probe.
 2. `export BUNGIE_API_KEY=...`
 3. Get 1–3 consenting players (you plus friends) with public profiles, and ideally one with a **private** profile.
 
@@ -14,23 +14,39 @@ Goal: confirm how Bungie's API reports each player state before writing the clas
 go run ./cmd/probe -players "You#1234,Friend#5678,PrivateFriend#0001" -interval 15s
 ```
 
-Before each scenario, type its label into the probe terminal and press Enter, e.g. `P1 orbit`.
+At startup the probe prints the player mapping (`P1 = You#1234`, `P2 = ...`). Use it to refer to players in labels.
 
-## Scenarios (label → what to do)
+Before each scenario, type its label into the probe terminal and press Enter. The label is logged with a timestamp (`label → "..." (set at HH:MM:SS.mmm)`).
+
+**One label applies to ALL players.** So keep every player in the same state for a scenario and use player-neutral labels (`all orbit`, `all in comp`). When players must differ, put the P number in the label (`P1 in comp, P2 orbit`) and filter `index.jsonl` by both player and label.
+
+Hold each state for at least 3 polls so changes and steady state are distinguishable.
+
+## Scenarios (label, what to do, hold for)
 
 | Label | Action | Hold for |
 |---|---|---|
-| `P1 offline` | Fully signed out of D2 | 1 min |
-| `P1 orbit` | Sitting in Orbit | 1 min |
-| `P1 orbit queuing comp` | In Orbit, matchmaking for Competitive | Until match found |
-| `P1 loading comp` | Loading into the match | — |
-| `P1 in comp` | In a Competitive match | Whole match |
-| `P1 post-game` | Post-game screen / back in Orbit | 2 min |
-| `P1 tower` | In the Tower | 1 min |
-| `P1 pve` | Patrol or strike | 1 min |
-| `P1 trials` | One Trials match (if live) | Whole match |
-| `P1 fireteam` | Repeat `orbit` and `in comp` in a fireteam with P2 | — |
+| `all offline` | Fully signed out of D2 | 1 min |
+| `all orbit` | Sitting in Orbit | 1 min |
+| `all orbit queuing comp` | In Orbit, matchmaking for Competitive | Until match found |
+| `all loading comp` | Loading into the match | Until in match |
+| `all in comp` | In a Competitive match | Whole match |
+| `MATCH ENDED` | Type it the instant the end-of-match screen appears | See below |
+| `all post-game` | Post-game screen / back in Orbit | 2 min |
+| `all tower` | In the Tower | 1 min |
+| `all pve` | Patrol or strike | 1 min |
+| `all trials` | One Trials match (if live) | Whole match |
+| `P1 P2 fireteam orbit` / `P1 P2 fireteam in comp` | Repeat `orbit` and `in comp` in a fireteam | 1 min / whole match |
 | `P3 private` | Private player doing anything | 1 min |
+| `all offline again` | Sign out after everything else, to capture the just-signed-out state | 1 min |
+
+### Match-end scenarios
+
+For `in comp`, `MATCH ENDED` and `post-game`, restart the probe with `-interval 5s` for finer resolution. Lag = the first poll where the activity changes minus the logged `MATCH ENDED` label time.
+
+### Optional burst step
+
+Run `-interval 1s` for 60 seconds with all players to see whether throttling ever appears. Normal use (~0.2 req/s) is unlikely to trigger it.
 
 ## Questions to answer (write the answers in Findings)
 
@@ -40,8 +56,13 @@ Before each scenario, type its label into the probe terminal and press Enter, e.
 4. What does an offline player look like (transitory data missing? stale activity hash?)
 5. What does a private player look like (which components have `privacy: 2`, which have data)?
 6. Is `currentActivityModeHash` or `currentPlaylistActivityHash` the better source for the playlist (Comp vs Control vs Trials)?
-7. Did we see any throttling at this request rate?
+7. Did we see any throttling at this request rate? The client retries throttles silently, so the evidence is `took=` values over ~2s or a logged `throttled=true`.
+8. With multiple characters or a fireteam, does `ActiveCharacterID` pick the character being played, and does party size show up in transitory data?
 
 ## Findings
 
 Write the findings to `docs/superpowers/specs/2026-10-15-probe-findings.md` with one section per question above, quoting `index.jsonl` lines as evidence. Plan 2's classifier is designed from that document.
+
+## Fixtures for Plan 2
+
+After the session, copy one representative raw JSON per state (offline, private, orbit, tower, pve, in-comp, post-game) from `testdata/probe/` into `testdata/bungie/` (committed). Get each player's consent first, and replace real names and membership IDs with fakes before committing.
