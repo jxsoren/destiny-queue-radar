@@ -11,3 +11,6 @@ GEMINI.md
 
 # Probe captures (contain real player IDs)
 testdata/probe/
+
+# Local secrets
+.env
