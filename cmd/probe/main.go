@@ -1,6 +1,6 @@
 // Command probe polls real Destiny 2 profiles and records labeled raw responses.
 //
-//	BUNGIE_API_KEY=... go run ./cmd/probe -players "Kwivor#1993,Clae™#0880"
+//	BUNGIE_API_KEY=... go run ./cmd/probe -players "You#1234,Friend#5678"
 //
 // Type a label and press Enter at any time to tag the following snapshots.
 package main
@@ -30,7 +30,7 @@ type target struct {
 }
 
 func main() {
-	players := flag.String("players", "", `comma-separated Bungie Names, e.g. "Kwivor#1993,Clae™#0880"`)
+	players := flag.String("players", "", `comma-separated Bungie Names, e.g. "You#1234,Friend#5678"`)
 	interval := flag.Duration("interval", 15*time.Second, "poll interval")
 	out := flag.String("out", "testdata/probe", "output directory")
 	flag.Parse()
@@ -102,7 +102,7 @@ func run(names []string, interval time.Duration, out string) error {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
-		pollAll(ctx, client, m, rec, label.Get(), targets)
+		pollAll(ctx, client, m, rec, &label, targets)
 		select {
 		case <-ctx.Done():
 			stop()
@@ -112,12 +112,13 @@ func run(names []string, interval time.Duration, out string) error {
 	}
 }
 
-func pollAll(ctx context.Context, client *bungie.Client, m *manifest.Manifest, rec *probe.Recorder, label string, targets []target) {
+func pollAll(ctx context.Context, client *bungie.Client, m *manifest.Manifest, rec *probe.Recorder, label *probe.Label, targets []target) {
 	for _, t := range targets {
 		if ctx.Err() != nil {
 			return
 		}
 		now := time.Now()
+		lbl := label.Get()
 		p, err := client.GetProfile(ctx, t.card.MembershipType, t.card.MembershipID)
 		took := time.Since(now).Round(time.Millisecond)
 		if err != nil {
@@ -128,10 +129,10 @@ func pollAll(ctx context.Context, client *bungie.Client, m *manifest.Manifest, r
 			continue
 		}
 		s := probe.Summarize(t.name, p, m)
-		if err := rec.Record(now, label, s, p.Raw); err != nil {
+		if err := rec.Record(now, lbl, s, p.Raw); err != nil {
 			log.Printf("%s: record: %v", t.name, err)
 		}
-		fmt.Printf("%s [%s] %s took=%s\n", now.Format("15:04:05"), label, s, took)
+		fmt.Printf("%s [%s] %s took=%s\n", now.Format("15:04:05"), lbl, s, took)
 	}
 }
 

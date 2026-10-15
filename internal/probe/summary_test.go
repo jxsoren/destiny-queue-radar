@@ -53,7 +53,12 @@ func onlineProfile() *bungie.Profile {
 }
 
 func TestSummarize_OnlineInMatch(t *testing.T) {
-	s := Summarize("Kwivor#1993", onlineProfile(), lookup)
+	p := onlineProfile()
+	p.Characters.Data = map[string]bungie.Character{"c1": {ClassType: 2}}
+	s := Summarize("Kwivor#1993", p, lookup)
+	if s.ClassType != 2 {
+		t.Errorf("classType=%d", s.ClassType)
+	}
 	if !s.Online || s.PartySize != 3 || s.CharacterID != "c1" {
 		t.Errorf("online=%v party=%d char=%q", s.Online, s.PartySize, s.CharacterID)
 	}
@@ -73,7 +78,7 @@ func TestSummarize_OnlineInMatch(t *testing.T) {
 		t.Errorf("modeType=%d types=%v hashes=%v", s.ModeType, s.ModeTypes, s.ModeHashes)
 	}
 	out := s.String()
-	for _, want := range []string{"Kwivor#1993", "online=true", `activity="Burnout"`, "cat=PvP", "priv=act:public/trans:public", "ca=true players=6 opp=3 modeType=84"} {
+	for _, want := range []string{"Kwivor#1993", "online=true", `activity="Burnout"`, "cat=PvP", "priv=act:public/trans:public", "class=Warlock", "ca=true players=6 opp=3 modeType=84"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("String() = %q, missing %q", out, want)
 		}

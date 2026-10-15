@@ -22,6 +22,7 @@ type Summary struct {
 	Online            bool                  `json:"online"`
 	ActivitiesPrivacy bungie.Privacy        `json:"activitiesPrivacy"`
 	CharacterID       string                `json:"characterId,omitempty"`
+	ClassType         int                   `json:"classType"`
 	ActivityHash      uint32                `json:"activityHash"`
 	Activity          string                `json:"activity"`
 	ActivityIsPvP     bool                  `json:"activityIsPvP"`
@@ -67,6 +68,7 @@ func Summarize(player string, p *bungie.Profile, l Lookup) Summary {
 	}
 	a := p.CharacterActivities.Data[id]
 	s.CharacterID = id
+	s.ClassType = p.Characters.Data[id].ClassType
 	s.Started = a.DateActivityStarted
 	s.ModeType, s.ModeTypes, s.ModeHashes = a.CurrentActivityModeType, a.CurrentActivityModeTypes, a.CurrentActivityModeHashes
 	s.ActivityHash, s.ModeHash, s.PlaylistHash = a.CurrentActivityHash, a.CurrentActivityModeHash, a.CurrentPlaylistActivityHash
@@ -96,6 +98,19 @@ func modeName(l Lookup, hash uint32) (string, manifest.ModeCategory) {
 	return fmt.Sprintf("unknown(%d)", hash), manifest.CategoryNone
 }
 
+func className(c int) string {
+	switch c {
+	case 0:
+		return "Titan"
+	case 1:
+		return "Hunter"
+	case 2:
+		return "Warlock"
+	default:
+		return fmt.Sprint(c)
+	}
+}
+
 func privacyName(p bungie.Privacy) string {
 	switch p {
 	case bungie.PrivacyNone:
@@ -114,7 +129,7 @@ func (s Summary) String() string {
 	if !s.Started.IsZero() {
 		started = s.Started.Local().Format("01-02 15:04:05")
 	}
-	return fmt.Sprintf("%-22s online=%t priv=act:%s/trans:%s activity=%q pvp=%t mode=%q cat=%s playlist=%q started=%s party=%d ca=%t players=%d opp=%d modeType=%d",
-		s.Player, s.Online, privacyName(s.ActivitiesPrivacy), privacyName(s.TransitoryPrivacy), s.Activity, s.ActivityIsPvP, s.Mode, s.ModeCategory,
+	return fmt.Sprintf("%-22s online=%t class=%s priv=act:%s/trans:%s activity=%q pvp=%t mode=%q cat=%s playlist=%q started=%s party=%d ca=%t players=%d opp=%d modeType=%d",
+		s.Player, s.Online, className(s.ClassType), privacyName(s.ActivitiesPrivacy), privacyName(s.TransitoryPrivacy), s.Activity, s.ActivityIsPvP, s.Mode, s.ModeCategory,
 		s.Playlist, started, s.PartySize, s.HasCurrentActivity, s.Players, s.Opponents, s.ModeType)
 }
