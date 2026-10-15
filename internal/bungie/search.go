@@ -23,7 +23,10 @@ func ParseBungieName(s string) (string, int, error) {
 	if i <= 0 {
 		return "", 0, fmt.Errorf("bungie name %q: expected Name#1234", s)
 	}
-	name, codeStr := s[:i], s[i+1:]
+	name, codeStr := strings.TrimSpace(s[:i]), s[i+1:]
+	if name == "" {
+		return "", 0, fmt.Errorf("bungie name %q: expected Name#1234", s)
+	}
 	if len(codeStr) != 4 {
 		return "", 0, fmt.Errorf("bungie name %q: code must be 4 digits", s)
 	}
@@ -63,5 +66,6 @@ func (c *Client) SearchByBungieName(ctx context.Context, name string, code int) 
 			return card, nil
 		}
 	}
+	// No matching Cross Save override (single platform, or multi-platform without Cross Save): use the first card.
 	return cards[0], nil
 }

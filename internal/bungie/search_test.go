@@ -19,6 +19,8 @@ func TestParseBungieName(t *testing.T) {
 		{in: "Badluck Apolo#7173", name: "Badluck Apolo", code: 7173},
 		{in: "  Spaces#0001  ", name: "Spaces", code: 1},
 		{in: "Has#Hash#1234", name: "Has#Hash", code: 1234},
+		{in: "Kwivor #1993", name: "Kwivor", code: 1993},
+		{in: "   #1993", wantFail: true},
 		{in: "NoCode", wantFail: true},
 		{in: "#1234", wantFail: true},
 		{in: "Short#123", wantFail: true},
