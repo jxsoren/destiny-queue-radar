@@ -36,6 +36,8 @@ func (c *Client) GetManifestInfo(ctx context.Context) (ManifestInfo, error) {
 
 // GetFile downloads a non-enveloped JSON file (e.g. a manifest definition) and decodes it into out.
 func (c *Client) GetFile(ctx context.Context, path string, out any) error {
+	ctx, cancel := context.WithTimeout(ctx, c.fileTimeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
 		return fmt.Errorf("bungie: build request %s: %w", path, err)

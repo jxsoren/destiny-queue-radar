@@ -3,6 +3,7 @@ package manifest
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/jxsoren/destiny-queue-radar/internal/bungie"
@@ -70,5 +71,40 @@ func TestModeCategory_String(t *testing.T) {
 		if got := cat.String(); got != want {
 			t.Errorf("%d: got %q want %q", int(cat), got, want)
 		}
+	}
+}
+
+var errBoom = errors.New("boom")
+
+type failingSource struct {
+	fakeSource
+	infoErr, fileErr error
+}
+
+func (f failingSource) GetManifestInfo(ctx context.Context) (bungie.ManifestInfo, error) {
+	if f.infoErr != nil {
+		return bungie.ManifestInfo{}, f.infoErr
+	}
+	return f.fakeSource.GetManifestInfo(ctx)
+}
+
+func (f failingSource) GetFile(ctx context.Context, path string, out any) error {
+	if f.fileErr != nil {
+		return f.fileErr
+	}
+	return f.fakeSource.GetFile(ctx, path, out)
+}
+
+func TestLoad_ManifestInfoError(t *testing.T) {
+	m, err := Load(context.Background(), failingSource{fakeSource: newFake(), infoErr: errBoom})
+	if m != nil || !errors.Is(err, errBoom) {
+		t.Errorf("m=%v err=%v", m, err)
+	}
+}
+
+func TestLoad_ActivityFileError(t *testing.T) {
+	m, err := Load(context.Background(), failingSource{fakeSource: newFake(), fileErr: errBoom})
+	if m != nil || !errors.Is(err, errBoom) {
+		t.Errorf("m=%v err=%v", m, err)
 	}
 }

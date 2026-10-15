@@ -2,6 +2,7 @@ package bungie
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 )
@@ -45,7 +46,19 @@ func TestGetFile_Non200IsError(t *testing.T) {
 		w.WriteHeader(http.StatusNotFound)
 	})
 	var out map[string]any
-	if err := c.GetFile(context.Background(), "/missing.json", &out); err == nil {
+	err := c.GetFile(context.Background(), "/missing.json", &out)
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.HTTPStatus != http.StatusNotFound {
+		t.Fatalf("err = %v, want *APIError with 404", err)
+	}
+}
+
+func TestGetManifestInfo_MissingEnIsError(t *testing.T) {
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"ErrorCode":1,"Response":{"version":"v9","jsonWorldComponentContentPaths":{"fr":{
+			"DestinyActivityDefinition":"/a.json","DestinyActivityModeDefinition":"/m.json"}}}}`))
+	})
+	if _, err := c.GetManifestInfo(context.Background()); err == nil {
 		t.Fatal("expected error")
 	}
 }

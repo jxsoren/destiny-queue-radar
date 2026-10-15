@@ -59,6 +59,8 @@ type Source interface {
 	GetFile(ctx context.Context, path string, out any) error
 }
 
+var _ Source = (*bungie.Client)(nil)
+
 type displayProperties struct {
 	Name string `json:"name"`
 }

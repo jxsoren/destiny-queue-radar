@@ -18,25 +18,29 @@ import (
 const maxThrottleWait = 60 * time.Second
 
 type Client struct {
-	apiKey      string
-	baseURL     string
-	http        *http.Client
-	maxRetries  int
-	baseBackoff time.Duration
-	sleep       func(context.Context, time.Duration) error
+	apiKey         string
+	baseURL        string
+	http           *http.Client
+	requestTimeout time.Duration
+	fileTimeout    time.Duration
+	maxRetries     int
+	baseBackoff    time.Duration
+	sleep          func(context.Context, time.Duration) error
 }
 
 func NewClient(apiKey, baseURL string, hc *http.Client) *Client {
 	if hc == nil {
-		hc = &http.Client{Timeout: 15 * time.Second}
+		hc = &http.Client{}
 	}
 	return &Client{
-		apiKey:      apiKey,
-		baseURL:     strings.TrimRight(baseURL, "/"),
-		http:        hc,
-		maxRetries:  3,
-		baseBackoff: 500 * time.Millisecond,
-		sleep:       sleepCtx,
+		apiKey:         apiKey,
+		baseURL:        strings.TrimRight(baseURL, "/"),
+		http:           hc,
+		requestTimeout: 15 * time.Second,
+		fileTimeout:    2 * time.Minute,
+		maxRetries:     3,
+		baseBackoff:    500 * time.Millisecond,
+		sleep:          sleepCtx,
 	}
 }
 
@@ -90,6 +94,8 @@ func (c *Client) callRaw(ctx context.Context, method, path string, body any) (js
 }
 
 func (c *Client) callOnce(ctx context.Context, method, path string, payload []byte) (json.RawMessage, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.requestTimeout)
+	defer cancel()
 	var body io.Reader
 	if payload != nil {
 		body = bytes.NewReader(payload)
