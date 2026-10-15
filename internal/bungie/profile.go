@@ -20,11 +20,16 @@ const (
 	PrivacyPrivate Privacy = 2
 )
 
+// single is a component with one data payload. Data is nil when the component is
+// private (Privacy 2), not returned, or (for transitory data) the player is offline.
+// Privacy 0 means "not returned", not public.
 type single[T any] struct {
 	Data    *T      `json:"data"`
 	Privacy Privacy `json:"privacy"`
 }
 
+// perCharacter is a component keyed by character ID. Data is nil/empty when the
+// component is private (Privacy 2) or not returned; Privacy 0 means "not returned", not public.
 type perCharacter[T any] struct {
 	Data    map[string]T `json:"data"`
 	Privacy Privacy      `json:"privacy"`
@@ -79,6 +84,9 @@ type TransitoryData struct {
 	CurrentActivity *TransitoryActivity `json:"currentActivity"`
 }
 
+// Profile is the decoded profile response. For every component, Data is nil (or an
+// empty map) when it is private (Privacy 2) or not returned; Privacy 0 means
+// "not returned", not public. ProfileTransitoryData.Data is also nil when the player is offline.
 type Profile struct {
 	Profile               single[ProfileData]               `json:"profile"`
 	Characters            perCharacter[Character]           `json:"characters"`
@@ -103,14 +111,28 @@ func (c *Client) GetProfile(ctx context.Context, membershipType int64, membershi
 	return &p, nil
 }
 
-// ActiveCharacterID returns the character whose current activity started most recently.
+// ActiveCharacterID returns the character most likely in play. Ordering: later
+// current-activity start wins; ties go to the later character DateLastPlayed;
+// remaining ties go to the lexicographically smaller ID, so the result is deterministic.
 func (p *Profile) ActiveCharacterID() (string, bool) {
-	var bestID string
-	var best time.Time
-	for id, a := range p.CharacterActivities.Data {
-		if bestID == "" || a.DateActivityStarted.After(best) {
-			bestID, best = id, a.DateActivityStarted
+	var best string
+	for id := range p.CharacterActivities.Data {
+		if best == "" || p.moreActive(id, best) {
+			best = id
 		}
 	}
-	return bestID, bestID != ""
+	return best, best != ""
+}
+
+// moreActive reports whether character a should be preferred over b.
+func (p *Profile) moreActive(a, b string) bool {
+	sa, sb := p.CharacterActivities.Data[a].DateActivityStarted, p.CharacterActivities.Data[b].DateActivityStarted
+	if !sa.Equal(sb) {
+		return sa.After(sb)
+	}
+	la, lb := p.Characters.Data[a].DateLastPlayed, p.Characters.Data[b].DateLastPlayed
+	if !la.Equal(lb) {
+		return la.After(lb)
+	}
+	return a < b
 }

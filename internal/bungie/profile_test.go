@@ -95,3 +95,47 @@ func TestActiveCharacterID_NoData(t *testing.T) {
 		t.Error("expected ok=false with no activity data")
 	}
 }
+
+func TestActiveCharacterID_TieBreaksOnLastPlayed(t *testing.T) {
+	p := &Profile{}
+	p.CharacterActivities.Data = map[string]CharacterActivities{"a": {}, "b": {}, "c": {}}
+	p.Characters.Data = map[string]Character{
+		"a": {DateLastPlayed: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)},
+		"b": {DateLastPlayed: time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)},
+		"c": {DateLastPlayed: time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)},
+	}
+	for i := 0; i < 50; i++ {
+		if id, ok := p.ActiveCharacterID(); !ok || id != "b" {
+			t.Fatalf("iteration %d: got %q, %v", i, id, ok)
+		}
+	}
+}
+
+func TestActiveCharacterID_FullTie_PicksSmallestID(t *testing.T) {
+	p := &Profile{}
+	p.CharacterActivities.Data = map[string]CharacterActivities{"c": {}, "a": {}, "b": {}}
+	for i := 0; i < 50; i++ {
+		if id, ok := p.ActiveCharacterID(); !ok || id != "a" {
+			t.Fatalf("iteration %d: got %q, %v", i, id, ok)
+		}
+	}
+}
+
+func TestGetProfile_PrivateComponentsDecodeAsNilData(t *testing.T) {
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"ErrorCode":1,"Response":{"profile":{"privacy":2},"characterActivities":{"privacy":2}}}`))
+	})
+	p, err := c.GetProfile(context.Background(), 3, "4611")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Profile.Privacy != PrivacyPrivate || p.CharacterActivities.Privacy != PrivacyPrivate {
+		t.Errorf("privacy = %d, %d", p.Profile.Privacy, p.CharacterActivities.Privacy)
+	}
+	if p.Profile.Data != nil || len(p.CharacterActivities.Data) != 0 {
+		t.Errorf("expected nil/empty data")
+	}
+	if _, ok := p.ActiveCharacterID(); ok {
+		t.Error("expected ok=false")
+	}
+}
