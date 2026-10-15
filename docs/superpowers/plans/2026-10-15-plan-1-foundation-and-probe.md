@@ -2115,3 +2115,5 @@ git commit -m "Add CI workflow"
 
 - **The global rate limiter must cover retries.** `bungie.Client` retries internally, so a limiter checked only before `GetProfile` doesn't see retries or throttle waits. Plan 2 should add an optional `limiter interface{ Wait(context.Context) error }` to `Client`, called before every attempt, *or* stop retrying throttles inside the client and surface them to the poller so it can pause everything at once (as it already does for SystemDisabled).
 - Confirm with the probe which HTTP status Bungie uses for 1601 and privacy errors. The client already avoids retrying 5xx responses that carry a definitive error code.
+- **Manifest reloads:** build a new `*manifest.Manifest` and publish it with `atomic.Pointer`. Readers take one snapshot per operation. A failed reload is logged and retried later, and the current manifest is never replaced with nil.
+- **Orbit and social spaces have no mode:** `currentActivityModeHash` is 0 or absent there, so `Mode(0)` returns `ok=false` and the classifier falls back to the activity name. For PvP, use mode category first, with `Activity.IsPvP` as a fallback. The probe confirms this.
