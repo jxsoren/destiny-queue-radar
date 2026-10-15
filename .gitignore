@@ -1,2 +1,13 @@
+# AI tooling and planning artifacts
 .superpowers/
+docs/superpowers/
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+GEMINI.md
+.cursor/
+.aider*
+
+# Probe captures (contain real player IDs)
 testdata/probe/
