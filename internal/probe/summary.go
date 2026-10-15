@@ -15,6 +15,8 @@ type Lookup interface {
 	Mode(hash uint32) (manifest.Mode, bool)
 }
 
+// Summary is the human-readable view of one profile poll. It is also the
+// index.jsonl schema, so field and JSON names are part of the recorded format.
 type Summary struct {
 	Player            string                `json:"player"`
 	Online            bool                  `json:"online"`
@@ -30,6 +32,17 @@ type Summary struct {
 	Playlist          string                `json:"playlist"`
 	Started           time.Time             `json:"started"`
 	PartySize         int                   `json:"partySize"`
+
+	TransitoryPrivacy  bungie.Privacy `json:"transitoryPrivacy"`
+	HasCurrentActivity bool           `json:"hasCurrentActivity"`
+	TransitoryStart    *time.Time     `json:"transitoryStart,omitempty"`
+	TransitoryEnd      *time.Time     `json:"transitoryEnd,omitempty"`
+	Players            int            `json:"players,omitempty"`
+	Opponents          int            `json:"opponents,omitempty"`
+
+	ModeType   int      `json:"modeType,omitempty"`
+	ModeTypes  []int    `json:"modeTypes,omitempty"`
+	ModeHashes []uint32 `json:"modeHashes,omitempty"`
 }
 
 func Summarize(player string, p *bungie.Profile, l Lookup) Summary {
@@ -37,9 +50,16 @@ func Summarize(player string, p *bungie.Profile, l Lookup) Summary {
 		Player:            player,
 		Online:            p.ProfileTransitoryData.Data != nil,
 		ActivitiesPrivacy: p.CharacterActivities.Privacy,
+		TransitoryPrivacy: p.ProfileTransitoryData.Privacy,
 	}
 	if s.Online {
-		s.PartySize = len(p.ProfileTransitoryData.Data.PartyMembers)
+		td := p.ProfileTransitoryData.Data
+		s.PartySize = len(td.PartyMembers)
+		if ca := td.CurrentActivity; ca != nil {
+			s.HasCurrentActivity = true
+			s.TransitoryStart, s.TransitoryEnd = ca.StartTime, ca.EndTime
+			s.Players, s.Opponents = ca.NumberOfPlayers, ca.NumberOfOpponents
+		}
 	}
 	id, ok := p.ActiveCharacterID()
 	if !ok {
@@ -48,6 +68,7 @@ func Summarize(player string, p *bungie.Profile, l Lookup) Summary {
 	a := p.CharacterActivities.Data[id]
 	s.CharacterID = id
 	s.Started = a.DateActivityStarted
+	s.ModeType, s.ModeTypes, s.ModeHashes = a.CurrentActivityModeType, a.CurrentActivityModeTypes, a.CurrentActivityModeHashes
 	s.ActivityHash, s.ModeHash, s.PlaylistHash = a.CurrentActivityHash, a.CurrentActivityModeHash, a.CurrentPlaylistActivityHash
 	s.Activity, s.ActivityIsPvP = activityName(l, a.CurrentActivityHash)
 	s.Playlist, _ = activityName(l, a.CurrentPlaylistActivityHash)
@@ -75,8 +96,25 @@ func modeName(l Lookup, hash uint32) (string, manifest.ModeCategory) {
 	return fmt.Sprintf("unknown(%d)", hash), manifest.CategoryNone
 }
 
+func privacyName(p bungie.Privacy) string {
+	switch p {
+	case bungie.PrivacyNone:
+		return "none"
+	case bungie.PrivacyPublic:
+		return "public"
+	case bungie.PrivacyPrivate:
+		return "private"
+	default:
+		return fmt.Sprint(int(p))
+	}
+}
+
 func (s Summary) String() string {
-	return fmt.Sprintf("%-22s online=%t privacy=%d activity=%q pvp=%t mode=%q cat=%s playlist=%q started=%s party=%d",
-		s.Player, s.Online, s.ActivitiesPrivacy, s.Activity, s.ActivityIsPvP, s.Mode, s.ModeCategory,
-		s.Playlist, s.Started.Local().Format("15:04:05"), s.PartySize)
+	started := "-"
+	if !s.Started.IsZero() {
+		started = s.Started.Local().Format("01-02 15:04:05")
+	}
+	return fmt.Sprintf("%-22s online=%t priv=act:%s/trans:%s activity=%q pvp=%t mode=%q cat=%s playlist=%q started=%s party=%d ca=%t players=%d opp=%d modeType=%d",
+		s.Player, s.Online, privacyName(s.ActivitiesPrivacy), privacyName(s.TransitoryPrivacy), s.Activity, s.ActivityIsPvP, s.Mode, s.ModeCategory,
+		s.Playlist, started, s.PartySize, s.HasCurrentActivity, s.Players, s.Opponents, s.ModeType)
 }

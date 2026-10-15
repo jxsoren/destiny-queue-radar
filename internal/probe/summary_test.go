@@ -39,10 +39,16 @@ func onlineProfile() *bungie.Profile {
 	started := time.Date(2026, 10, 15, 18, 5, 0, 0, time.UTC)
 	p.CharacterActivities.Privacy = bungie.PrivacyPublic
 	p.CharacterActivities.Data = map[string]bungie.CharacterActivities{
-		"c1": {DateActivityStarted: started, CurrentActivityHash: 100, CurrentActivityModeHash: 300, CurrentPlaylistActivityHash: 500},
+		"c1": {DateActivityStarted: started, CurrentActivityHash: 100, CurrentActivityModeHash: 300, CurrentPlaylistActivityHash: 500,
+			CurrentActivityModeType: 84, CurrentActivityModeTypes: []int{5, 84}, CurrentActivityModeHashes: []uint32{300, 301}},
 		"c2": {DateActivityStarted: started.Add(-72 * time.Hour)},
 	}
-	p.ProfileTransitoryData.Data = &bungie.TransitoryData{PartyMembers: []bungie.PartyMember{{}, {}, {}}}
+	ts := started.Add(time.Minute)
+	p.ProfileTransitoryData.Privacy = bungie.PrivacyPublic
+	p.ProfileTransitoryData.Data = &bungie.TransitoryData{
+		PartyMembers:    []bungie.PartyMember{{}, {}, {}},
+		CurrentActivity: &bungie.TransitoryActivity{StartTime: &ts, NumberOfPlayers: 6, NumberOfOpponents: 3},
+	}
 	return p
 }
 
@@ -60,8 +66,14 @@ func TestSummarize_OnlineInMatch(t *testing.T) {
 	if s.Playlist != "Trials of Osiris" {
 		t.Errorf("playlist=%q", s.Playlist)
 	}
+	if !s.HasCurrentActivity || s.Players != 6 || s.Opponents != 3 || s.TransitoryStart == nil || s.TransitoryEnd != nil || s.TransitoryPrivacy != bungie.PrivacyPublic {
+		t.Errorf("ca=%v players=%d opp=%d start=%v end=%v tpriv=%d", s.HasCurrentActivity, s.Players, s.Opponents, s.TransitoryStart, s.TransitoryEnd, s.TransitoryPrivacy)
+	}
+	if s.ModeType != 84 || len(s.ModeTypes) != 2 || s.ModeTypes[1] != 84 || len(s.ModeHashes) != 2 {
+		t.Errorf("modeType=%d types=%v hashes=%v", s.ModeType, s.ModeTypes, s.ModeHashes)
+	}
 	out := s.String()
-	for _, want := range []string{"Kwivor#1993", "online=true", `activity="Burnout"`, "cat=PvP"} {
+	for _, want := range []string{"Kwivor#1993", "online=true", `activity="Burnout"`, "cat=PvP", "priv=act:public/trans:public", "ca=true players=6 opp=3 modeType=84"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("String() = %q, missing %q", out, want)
 		}
@@ -92,7 +104,35 @@ func TestSummarize_PrivateActivities(t *testing.T) {
 	p := &bungie.Profile{}
 	p.CharacterActivities.Privacy = bungie.PrivacyPrivate
 	s := Summarize("X#0001", p, lookup)
+	if s.Online || s.PartySize != 0 {
+		t.Errorf("online=%v party=%d", s.Online, s.PartySize)
+	}
 	if s.ActivitiesPrivacy != bungie.PrivacyPrivate || s.CharacterID != "" {
 		t.Errorf("privacy=%d char=%q", s.ActivitiesPrivacy, s.CharacterID)
+	}
+}
+
+func TestSummarize_OnlineNoCurrentActivity(t *testing.T) {
+	p := onlineProfile()
+	p.ProfileTransitoryData.Data.CurrentActivity = nil
+	s := Summarize("X#0001", p, lookup)
+	if !s.Online || s.HasCurrentActivity || s.Players != 0 || s.Opponents != 0 || s.TransitoryStart != nil {
+		t.Errorf("online=%v ca=%v players=%d", s.Online, s.HasCurrentActivity, s.Players)
+	}
+}
+
+func TestSummarize_ZeroHashes(t *testing.T) {
+	p := onlineProfile()
+	p.CharacterActivities.Data = map[string]bungie.CharacterActivities{"c1": {}}
+	s := Summarize("X#0001", p, lookup)
+	if s.Activity != "" || s.Mode != "" || s.Playlist != "" || s.ModeCategory != manifest.CategoryNone {
+		t.Errorf("activity=%q mode=%q playlist=%q cat=%v", s.Activity, s.Mode, s.Playlist, s.ModeCategory)
+	}
+}
+
+func TestSummary_StringZeroStarted(t *testing.T) {
+	out := Summary{Player: "X#0001"}.String()
+	if !strings.Contains(out, "started=-") {
+		t.Errorf("String() = %q", out)
 	}
 }
