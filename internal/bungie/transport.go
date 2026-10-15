@@ -14,6 +14,9 @@ import (
 	"time"
 )
 
+// maxThrottleWait caps how long a Bungie-requested throttle delay can block a call.
+const maxThrottleWait = 60 * time.Second
+
 type Client struct {
 	apiKey      string
 	baseURL     string
@@ -103,17 +106,25 @@ func (c *Client) callOnce(ctx context.Context, method, path string, payload []by
 	if err != nil {
 		return nil, &TransportError{Path: path, Err: err}
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// Drain so the keep-alive connection can be reused.
+		io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+		resp.Body.Close()
+	}()
 
 	var env envelope
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 		return nil, &APIError{HTTPStatus: resp.StatusCode, Message: fmt.Sprintf("decode %s: %v", path, err)}
 	}
 	if env.ErrorCode != CodeSuccess {
+		msg := env.Message
+		if env.ErrorCode == 0 && msg == "" {
+			msg = "missing envelope"
+		}
 		return nil, &APIError{
 			Code:            env.ErrorCode,
 			Status:          env.ErrorStatus,
-			Message:         env.Message,
+			Message:         msg,
 			ThrottleSeconds: env.ThrottleSeconds,
 			HTTPStatus:      resp.StatusCode,
 		}
@@ -131,8 +142,10 @@ func (c *Client) retryDelay(err error, attempt int) (time.Duration, bool) {
 		case apiErr.Code == CodeSystemDisabled:
 			return 0, false
 		case apiErr.ThrottleSeconds > 0:
-			return time.Duration(apiErr.ThrottleSeconds) * time.Second, true
-		case apiErr.HTTPStatus >= 500:
+			return min(time.Duration(apiErr.ThrottleSeconds)*time.Second, maxThrottleWait), true
+		case apiErr.Code == 0 && apiErr.HTTPStatus == http.StatusTooManyRequests:
+			return c.backoff(attempt), true
+		case apiErr.HTTPStatus >= 500 && apiErr.Code == 0:
 			return c.backoff(attempt), true
 		default:
 			return 0, false
