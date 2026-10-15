@@ -68,6 +68,9 @@ func slug(s string) string {
 			b.WriteRune('_')
 		}
 	}
+	if b.Len() == 0 {
+		return "unknown"
+	}
 	return b.String()
 }
 

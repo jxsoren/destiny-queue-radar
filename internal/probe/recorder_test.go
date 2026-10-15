@@ -62,7 +62,10 @@ func TestRecorder_AppendsAcrossRuns(t *testing.T) {
 		}
 		r.Close()
 	}
-	b, _ := os.ReadFile(filepath.Join(dir, "index.jsonl"))
+	b, err := os.ReadFile(filepath.Join(dir, "index.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if n := bytes.Count(b, []byte("\n")); n != 2 {
 		t.Errorf("index lines = %d, want 2", n)
 	}
@@ -73,6 +76,8 @@ func TestSlug(t *testing.T) {
 		"Kwivor#1993":        "Kwivor_1993",
 		"Clae™#0880":         "Clae__0880",
 		"Badluck Apolo#7173": "Badluck_Apolo_7173",
+		"":                   "unknown",
+		"../x":               "___x",
 	} {
 		if got := slug(in); got != want {
 			t.Errorf("slug(%q) = %q, want %q", in, got, want)
