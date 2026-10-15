@@ -612,7 +612,7 @@ const profileFixture = `{
   "ErrorCode": 1,
   "Response": {
     "profile": {"privacy": 1, "data": {
-      "userInfo": {"membershipType": 3, "membershipId": "4611", "bungieGlobalDisplayName": "Kwivor", "bungieGlobalDisplayNameCode": 1993},
+      "userInfo": {"membershipType": 3, "membershipId": "4611", "bungieGlobalDisplayName": "Guardian", "bungieGlobalDisplayNameCode": 1993},
       "dateLastPlayed": "2026-10-15T18:00:00Z",
       "characterIds": ["c1", "c2"]
     }},
@@ -625,7 +625,7 @@ const profileFixture = `{
       "c2": {"dateActivityStarted": "2026-10-01T10:00:00Z", "currentActivityHash": 0}
     }},
     "profileTransitoryData": {"privacy": 1, "data": {
-      "partyMembers": [{"membershipId": "4611", "displayName": "Kwivor", "status": 11}],
+      "partyMembers": [{"membershipId": "4611", "displayName": "Guardian", "status": 11}],
       "currentActivity": {"startTime": "2026-10-15T18:05:10Z", "numberOfPlayers": 6, "numberOfOpponents": 3}
     }}
   }
@@ -645,7 +645,7 @@ func TestGetProfile_RequestsComponentsAndDecodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Profile.Data.UserInfo.BungieGlobalDisplayName != "Kwivor" {
+	if p.Profile.Data.UserInfo.BungieGlobalDisplayName != "Guardian" {
 		t.Errorf("display name = %q", p.Profile.Data.UserInfo.BungieGlobalDisplayName)
 	}
 	if p.Characters.Data["c1"].EmblemBackgroundPath != "/e1bg.jpg" {
@@ -845,7 +845,7 @@ git commit -m "Add GetProfile with activity and transitory components"
 - Create: `internal/bungie/search.go`
 - Test: `internal/bungie/search_test.go`
 
-Background: `POST /Platform/Destiny2/SearchDestinyPlayerByBungieName/-1/` with body `{"displayName":"Kwivor","displayNameCode":1993}` returns an array of user info cards, one per platform. With Cross Save, the card whose `membershipType == crossSaveOverride` is the real one. When `crossSaveOverride == 0`, use the first card. Codes are 4 digits and may have leading zeros (`#0880` is code 880).
+Background: `POST /Platform/Destiny2/SearchDestinyPlayerByBungieName/-1/` with body `{"displayName":"Guardian","displayNameCode":1993}` returns an array of user info cards, one per platform. With Cross Save, the card whose `membershipType == crossSaveOverride` is the real one. When `crossSaveOverride == 0`, use the first card. Codes are 4 digits and may have leading zeros (`#0880` is code 880).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -868,9 +868,9 @@ func TestParseBungieName(t *testing.T) {
 		code     int
 		wantFail bool
 	}{
-		{in: "Kwivor#1993", name: "Kwivor", code: 1993},
-		{in: "Clae™#0880", name: "Clae™", code: 880},
-		{in: "Badluck Apolo#7173", name: "Badluck Apolo", code: 7173},
+		{in: "Guardian#1993", name: "Guardian", code: 1993},
+		{in: "Ghost™#0880", name: "Ghost™", code: 880},
+		{in: "Lucky Strike#7173", name: "Lucky Strike", code: 7173},
 		{in: "  Spaces#0001  ", name: "Spaces", code: 1},
 		{in: "Has#Hash#1234", name: "Has#Hash", code: 1234},
 		{in: "NoCode", wantFail: true},
@@ -893,7 +893,7 @@ func TestParseBungieName(t *testing.T) {
 }
 
 func TestFormatBungieName_PadsCode(t *testing.T) {
-	if got := FormatBungieName("Clae™", 880); got != "Clae™#0880" {
+	if got := FormatBungieName("Ghost™", 880); got != "Ghost™#0880" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -905,15 +905,15 @@ func TestSearchByBungieName_PicksCrossSavePrimary(t *testing.T) {
 		}
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
-		if body["displayName"] != "Kwivor" || body["displayNameCode"] != float64(1993) {
+		if body["displayName"] != "Guardian" || body["displayNameCode"] != float64(1993) {
 			t.Errorf("body = %v", body)
 		}
 		w.Write([]byte(`{"ErrorCode":1,"Response":[
-			{"membershipType":2,"membershipId":"psn","crossSaveOverride":3,"bungieGlobalDisplayName":"Kwivor","bungieGlobalDisplayNameCode":1993},
-			{"membershipType":3,"membershipId":"steam","crossSaveOverride":3,"bungieGlobalDisplayName":"Kwivor","bungieGlobalDisplayNameCode":1993}
+			{"membershipType":2,"membershipId":"psn","crossSaveOverride":3,"bungieGlobalDisplayName":"Guardian","bungieGlobalDisplayNameCode":1993},
+			{"membershipType":3,"membershipId":"steam","crossSaveOverride":3,"bungieGlobalDisplayName":"Guardian","bungieGlobalDisplayNameCode":1993}
 		]}`))
 	})
-	card, err := c.SearchByBungieName(context.Background(), "Kwivor", 1993)
+	card, err := c.SearchByBungieName(context.Background(), "Guardian", 1993)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1459,7 +1459,7 @@ func onlineProfile() *bungie.Profile {
 }
 
 func TestSummarize_OnlineInMatch(t *testing.T) {
-	s := Summarize("Kwivor#1993", onlineProfile(), lookup)
+	s := Summarize("Guardian#1993", onlineProfile(), lookup)
 	if !s.Online || s.PartySize != 3 || s.CharacterID != "c1" {
 		t.Errorf("online=%v party=%d char=%q", s.Online, s.PartySize, s.CharacterID)
 	}
@@ -1473,7 +1473,7 @@ func TestSummarize_OnlineInMatch(t *testing.T) {
 		t.Errorf("playlist=%q", s.Playlist)
 	}
 	out := s.String()
-	for _, want := range []string{"Kwivor#1993", "online=true", `activity="Burnout"`, "cat=PvP"} {
+	for _, want := range []string{"Guardian#1993", "online=true", `activity="Burnout"`, "cat=PvP"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("String() = %q, missing %q", out, want)
 		}
@@ -1650,7 +1650,7 @@ func TestRecorder_WritesRawFileAndIndexLine(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := time.Date(2026, 10, 15, 18, 5, 7, 123_000_000, time.UTC)
-	s := Summary{Player: "Clae™#0880", Activity: "Orbit"}
+	s := Summary{Player: "Ghost™#0880", Activity: "Orbit"}
 	if err := r.Record(at, "P1 orbit", s, []byte(`{"raw":true}`)); err != nil {
 		t.Fatal(err)
 	}
@@ -1658,7 +1658,7 @@ func TestRecorder_WritesRawFileAndIndexLine(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rel := filepath.Join("Clae__0880", "20261015T180507.123Z.json")
+	rel := filepath.Join("Ghost__0880", "20261015T180507.123Z.json")
 	raw, err := os.ReadFile(filepath.Join(dir, rel))
 	if err != nil || string(raw) != `{"raw":true}` {
 		t.Fatalf("raw file: %q, %v", raw, err)
@@ -1703,9 +1703,9 @@ func TestRecorder_AppendsAcrossRuns(t *testing.T) {
 
 func TestSlug(t *testing.T) {
 	for in, want := range map[string]string{
-		"Kwivor#1993":        "Kwivor_1993",
-		"Clae™#0880":         "Clae__0880",
-		"Badluck Apolo#7173": "Badluck_Apolo_7173",
+		"Guardian#1993":        "Guardian_1993",
+		"Ghost™#0880":         "Ghost__0880",
+		"Lucky Strike#7173": "Lucky_Strike_7173",
 	} {
 		if got := slug(in); got != want {
 			t.Errorf("slug(%q) = %q, want %q", in, got, want)
@@ -1857,7 +1857,7 @@ git commit -m "Add probe recorder and operator label"
 ```go
 // Command probe polls real Destiny 2 profiles and records labeled raw responses.
 //
-//	BUNGIE_API_KEY=... go run ./cmd/probe -players "Kwivor#1993,Clae™#0880"
+//	BUNGIE_API_KEY=... go run ./cmd/probe -players "Guardian#1993,Ghost™#0880"
 //
 // Type a label and press Enter at any time to tag the following snapshots.
 package main
@@ -1886,7 +1886,7 @@ type target struct {
 }
 
 func main() {
-	players := flag.String("players", "", `comma-separated Bungie Names, e.g. "Kwivor#1993,Clae™#0880"`)
+	players := flag.String("players", "", `comma-separated Bungie Names, e.g. "Guardian#1993,Ghost™#0880"`)
 	interval := flag.Duration("interval", 15*time.Second, "poll interval")
 	out := flag.String("out", "testdata/probe", "output directory")
 	flag.Parse()

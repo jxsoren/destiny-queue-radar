@@ -17,7 +17,7 @@ func TestRecorder_WritesRawFileAndIndexLine(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := time.Date(2026, 10, 15, 18, 5, 7, 123_000_000, time.UTC)
-	s := Summary{Player: "Clae™#0880", Activity: "Orbit"}
+	s := Summary{Player: "Ghost™#0880", Activity: "Orbit"}
 	if err := r.Record(at, "P1 orbit", s, []byte(`{"raw":true}`)); err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestRecorder_WritesRawFileAndIndexLine(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rel := filepath.Join("Clae__0880", "20261015T180507.123Z.json")
+	rel := filepath.Join("Ghost__0880", "20261015T180507.123Z.json")
 	raw, err := os.ReadFile(filepath.Join(dir, rel))
 	if err != nil || string(raw) != `{"raw":true}` {
 		t.Fatalf("raw file: %q, %v", raw, err)
@@ -73,11 +73,11 @@ func TestRecorder_AppendsAcrossRuns(t *testing.T) {
 
 func TestSlug(t *testing.T) {
 	for in, want := range map[string]string{
-		"Kwivor#1993":        "Kwivor_1993",
-		"Clae™#0880":         "Clae__0880",
-		"Badluck Apolo#7173": "Badluck_Apolo_7173",
-		"":                   "unknown",
-		"../x":               "___x",
+		"Guardian#1993":     "Guardian_1993",
+		"Ghost™#0880":       "Ghost__0880",
+		"Lucky Strike#7173": "Lucky_Strike_7173",
+		"":                  "unknown",
+		"../x":              "___x",
 	} {
 		if got := slug(in); got != want {
 			t.Errorf("slug(%q) = %q, want %q", in, got, want)

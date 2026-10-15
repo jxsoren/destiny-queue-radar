@@ -14,12 +14,12 @@ func TestParseBungieName(t *testing.T) {
 		code     int
 		wantFail bool
 	}{
-		{in: "Kwivor#1993", name: "Kwivor", code: 1993},
-		{in: "Clae™#0880", name: "Clae™", code: 880},
-		{in: "Badluck Apolo#7173", name: "Badluck Apolo", code: 7173},
+		{in: "Guardian#1993", name: "Guardian", code: 1993},
+		{in: "Ghost™#0880", name: "Ghost™", code: 880},
+		{in: "Lucky Strike#7173", name: "Lucky Strike", code: 7173},
 		{in: "  Spaces#0001  ", name: "Spaces", code: 1},
 		{in: "Has#Hash#1234", name: "Has#Hash", code: 1234},
-		{in: "Kwivor #1993", name: "Kwivor", code: 1993},
+		{in: "Guardian #1993", name: "Guardian", code: 1993},
 		{in: "   #1993", wantFail: true},
 		{in: "NoCode", wantFail: true},
 		{in: "#1234", wantFail: true},
@@ -43,7 +43,7 @@ func TestParseBungieName(t *testing.T) {
 }
 
 func TestFormatBungieName_PadsCode(t *testing.T) {
-	if got := FormatBungieName("Clae™", 880); got != "Clae™#0880" {
+	if got := FormatBungieName("Ghost™", 880); got != "Ghost™#0880" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -55,15 +55,15 @@ func TestSearchByBungieName_PicksCrossSavePrimary(t *testing.T) {
 		}
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
-		if body["displayName"] != "Kwivor" || body["displayNameCode"] != float64(1993) {
+		if body["displayName"] != "Guardian" || body["displayNameCode"] != float64(1993) {
 			t.Errorf("body = %v", body)
 		}
 		w.Write([]byte(`{"ErrorCode":1,"Response":[
-			{"membershipType":2,"membershipId":"psn","crossSaveOverride":3,"bungieGlobalDisplayName":"Kwivor","bungieGlobalDisplayNameCode":1993},
-			{"membershipType":3,"membershipId":"steam","crossSaveOverride":3,"bungieGlobalDisplayName":"Kwivor","bungieGlobalDisplayNameCode":1993}
+			{"membershipType":2,"membershipId":"psn","crossSaveOverride":3,"bungieGlobalDisplayName":"Guardian","bungieGlobalDisplayNameCode":1993},
+			{"membershipType":3,"membershipId":"steam","crossSaveOverride":3,"bungieGlobalDisplayName":"Guardian","bungieGlobalDisplayNameCode":1993}
 		]}`))
 	})
-	card, err := c.SearchByBungieName(context.Background(), "Kwivor", 1993)
+	card, err := c.SearchByBungieName(context.Background(), "Guardian", 1993)
 	if err != nil {
 		t.Fatal(err)
 	}

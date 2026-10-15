@@ -12,7 +12,7 @@ const profileFixture = `{
   "ErrorCode": 1,
   "Response": {
     "profile": {"privacy": 1, "data": {
-      "userInfo": {"membershipType": 3, "membershipId": "4611", "bungieGlobalDisplayName": "Kwivor", "bungieGlobalDisplayNameCode": 1993},
+      "userInfo": {"membershipType": 3, "membershipId": "4611", "bungieGlobalDisplayName": "Guardian", "bungieGlobalDisplayNameCode": 1993},
       "dateLastPlayed": "2026-10-15T18:00:00Z",
       "characterIds": ["c1", "c2"]
     }},
@@ -25,7 +25,7 @@ const profileFixture = `{
       "c2": {"dateActivityStarted": "2026-10-01T10:00:00Z", "currentActivityHash": 0}
     }},
     "profileTransitoryData": {"privacy": 1, "data": {
-      "partyMembers": [{"membershipId": "4611", "displayName": "Kwivor", "status": 11}],
+      "partyMembers": [{"membershipId": "4611", "displayName": "Guardian", "status": 11}],
       "currentActivity": {"startTime": "2026-10-15T18:05:10Z", "numberOfPlayers": 6, "numberOfOpponents": 3}
     }}
   }
@@ -45,7 +45,7 @@ func TestGetProfile_RequestsComponentsAndDecodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Profile.Data.UserInfo.BungieGlobalDisplayName != "Kwivor" {
+	if p.Profile.Data.UserInfo.BungieGlobalDisplayName != "Guardian" {
 		t.Errorf("display name = %q", p.Profile.Data.UserInfo.BungieGlobalDisplayName)
 	}
 	if p.Characters.Data["c1"].EmblemBackgroundPath != "/e1bg.jpg" {
