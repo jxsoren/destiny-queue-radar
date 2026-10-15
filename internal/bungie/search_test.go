@@ -23,6 +23,8 @@ func TestParseBungieName(t *testing.T) {
 		{in: "#1234", wantFail: true},
 		{in: "Short#123", wantFail: true},
 		{in: "Letters#12a4", wantFail: true},
+		{in: "Plus#+123", wantFail: true},
+		{in: "Minus#-123", wantFail: true},
 	}
 	for _, tt := range tests {
 		name, code, err := ParseBungieName(tt.in)

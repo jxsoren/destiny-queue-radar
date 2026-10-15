@@ -27,6 +27,11 @@ func ParseBungieName(s string) (string, int, error) {
 	if len(codeStr) != 4 {
 		return "", 0, fmt.Errorf("bungie name %q: code must be 4 digits", s)
 	}
+	for _, c := range codeStr {
+		if c < '0' || c > '9' {
+			return "", 0, fmt.Errorf("bungie name %q: code must be numeric", s)
+		}
+	}
 	code, err := strconv.Atoi(codeStr)
 	if err != nil {
 		return "", 0, fmt.Errorf("bungie name %q: code must be numeric", s)
