@@ -2110,3 +2110,8 @@ git commit -m "Add CI workflow"
 1. Run the probe following `docs/probe-runbook.md` (needs a real API key and players; **done by a person, not an agent**).
 2. Write `docs/superpowers/specs/2026-10-15-probe-findings.md`.
 3. Write Plan 2 (backend service) from the spec + findings.
+
+### Carry-overs for Plan 2 (from Task 2 code review)
+
+- **The global rate limiter must cover retries.** `bungie.Client` retries internally, so a limiter checked only before `GetProfile` doesn't see retries or throttle waits. Plan 2 should add an optional `limiter interface{ Wait(context.Context) error }` to `Client`, called before every attempt, *or* stop retrying throttles inside the client and surface them to the poller so it can pause everything at once (as it already does for SystemDisabled).
+- Confirm with the probe which HTTP status Bungie uses for 1601 and privacy errors. The client already avoids retrying 5xx responses that carry a definitive error code.
