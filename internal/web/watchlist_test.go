@@ -245,3 +245,51 @@ func TestWatchlist_AddRejectsMismatchedProfile(t *testing.T) {
 		t.Error("player stored from an unexpected response")
 	}
 }
+
+func TestSearch_IncludesEmblem(t *testing.T) {
+	e := newTestEnv(t)
+	_, cookie := e.login(t, "Guardian#1993")
+	e.bungie.cards["Ghost#0880"] = bungie.UserInfoCard{MembershipType: 3, MembershipID: "777", BungieGlobalDisplayName: "Ghost", BungieGlobalDisplayNameCode: 880}
+	e.addProfile(3, "777", "Ghost", 880)
+	e.bungie.profiles["777"].Characters.Data = map[string]bungie.Character{
+		"c1": {CharacterID: "c1", EmblemPath: "/common/emblem.jpg", EmblemBackgroundPath: "/common/emblem-bg.jpg"},
+	}
+
+	rec := e.do(t, http.MethodGet, "/api/search?q=Ghost%230880", nil, cookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("search = %d %s", rec.Code, rec.Body)
+	}
+	if got := decode[searchResultJSON](t, rec); got.EmblemPath != "/common/emblem.jpg" || got.MembershipID != "777" {
+		t.Errorf("result = %+v", got)
+	}
+}
+
+func TestSearch_ProfileErrorStillAnswers(t *testing.T) {
+	e := newTestEnv(t)
+	_, cookie := e.login(t, "Guardian#1993")
+	e.bungie.cards["Ghost#0880"] = bungie.UserInfoCard{MembershipType: 3, MembershipID: "777", BungieGlobalDisplayName: "Ghost", BungieGlobalDisplayNameCode: 880}
+	e.bungie.profileErr = errors.New("bungie down")
+
+	rec := e.do(t, http.MethodGet, "/api/search?q=Ghost%230880", nil, cookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("search = %d %s", rec.Code, rec.Body)
+	}
+	got := decode[searchResultJSON](t, rec)
+	if got.EmblemPath != "" || got.BungieName != "Ghost#0880" {
+		t.Errorf("result = %+v", got)
+	}
+	if !strings.Contains(rec.Body.String(), `"emblemPath":""`) {
+		t.Errorf("emblemPath must always be present: %s", rec.Body)
+	}
+}
+
+func TestSearch_EmblemLookupUsesNoExtraLookupBudget(t *testing.T) {
+	e := newTestEnv(t)
+	_, cookie := e.login(t, "Guardian#1993")
+	e.bungie.cards["Ghost#0880"] = bungie.UserInfoCard{MembershipType: 3, MembershipID: "777"}
+	for i := 0; i < lookupsPerMinute; i++ {
+		if rec := e.do(t, http.MethodGet, "/api/search?q=Ghost%230880", nil, cookie); rec.Code != http.StatusOK {
+			t.Fatalf("search %d = %d, want 200 (one lookup per search)", i, rec.Code)
+		}
+	}
+}

@@ -175,6 +175,7 @@ type searchResultJSON struct {
 	MembershipType int64  `json:"membershipType"`
 	MembershipID   string `json:"membershipId"`
 	BungieName     string `json:"bungieName"`
+	EmblemPath     string `json:"emblemPath"`
 }
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, u store.User) {
@@ -200,7 +201,15 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, u store.Us
 	if card.BungieGlobalDisplayName != "" {
 		display = bungie.FormatBungieName(card.BungieGlobalDisplayName, card.BungieGlobalDisplayNameCode)
 	}
-	writeJSON(w, http.StatusOK, searchResultJSON{MembershipType: card.MembershipType, MembershipID: card.MembershipID, BungieName: display})
+	// The emblem is a nicety: a failed profile lookup still answers the search.
+	var emblem string
+	if prof, err := s.d.Bungie.GetProfile(r.Context(), card.MembershipType, card.MembershipID); err == nil {
+		emblem, _ = prof.ActiveEmblem()
+	} else if !bungie.IsNotFound(err) {
+		s.d.Log.Warn("search emblem lookup failed", "err", err)
+	}
+	writeJSON(w, http.StatusOK, searchResultJSON{MembershipType: card.MembershipType, MembershipID: card.MembershipID,
+		BungieName: display, EmblemPath: emblem})
 }
 
 // allowLookup applies the per-user lookup rate limit, answering 429 when exceeded.
