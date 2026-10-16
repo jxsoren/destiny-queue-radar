@@ -49,19 +49,19 @@ func open(ctx context.Context, cfg *pgxpool.Config) (*Store, error) {
 func (s *Store) Close() { s.pool.Close() }
 
 type User struct {
-	ID                 int64
-	BungieMembershipID string
-	BungieName         string
+	ID                    int64
+	BungieMembershipID    string
+	BungieName            string
+	DestinyMembershipType int64
+	DestinyMembershipID   string
 }
 
 // UpsertUser creates the user for a Bungie.net membership, or updates their display name.
 func (s *Store) UpsertUser(ctx context.Context, bungieMembershipID, bungieName string) (User, error) {
-	var u User
-	err := s.pool.QueryRow(ctx, `
+	u, err := scanUser(s.pool.QueryRow(ctx, `
 		INSERT INTO users (bungie_membership_id, bungie_name) VALUES ($1, $2)
 		ON CONFLICT (bungie_membership_id) DO UPDATE SET bungie_name = EXCLUDED.bungie_name
-		RETURNING id, bungie_membership_id, bungie_name`,
-		bungieMembershipID, bungieName).Scan(&u.ID, &u.BungieMembershipID, &u.BungieName)
+		RETURNING `+userColumns, bungieMembershipID, bungieName))
 	if err != nil {
 		return User{}, fmt.Errorf("store: upsert user: %w", err)
 	}

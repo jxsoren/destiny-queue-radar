@@ -18,8 +18,8 @@ func TestOpen_MigrationsAreIdempotent(t *testing.T) {
 		if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
-		if n != 1 {
-			t.Errorf("open #%d: %d migrations recorded, want 1", i+1, n)
+		if n != 2 {
+			t.Errorf("open #%d: %d migrations recorded, want 2", i+1, n)
 		}
 		s.Close()
 	}
