@@ -62,6 +62,8 @@ func scanPlayer(row pgx.Row, p *Player, extra ...any) error {
 }
 
 // AddWatch puts p on the user's watchlist (or updates the note if already there).
+// Callers must have verified that the player exists: a stored NOT_FOUND status is cleared,
+// since the player row is shared and that status is now known to be stale.
 // It returns ErrWatchlistFull at MaxWatchlist and ErrNotFound for an unknown user.
 func (s *Store) AddWatch(ctx context.Context, userID int64, p PlayerRef, note, source string) error {
 	tx, err := s.pool.Begin(ctx)
@@ -92,6 +94,7 @@ func (s *Store) AddWatch(ctx context.Context, userID int64, p PlayerRef, note, s
 		ON CONFLICT (membership_id) DO UPDATE SET
 			membership_type = EXCLUDED.membership_type,
 			bungie_name = COALESCE(NULLIF(EXCLUDED.bungie_name, ''), players.bungie_name),
+			status = CASE WHEN players.status->>'state' = 'NOT_FOUND' THEN '{}'::jsonb ELSE players.status END,
 			-- Touching updated_at stops a concurrent DeleteUnwatchedPlayers from removing this
 			-- player before the watch entry below is inserted.
 			updated_at = now()`,

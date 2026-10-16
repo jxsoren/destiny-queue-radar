@@ -331,3 +331,38 @@ func TestSearch_ProfileWithoutCharactersHasNoEmblem(t *testing.T) {
 		t.Errorf("search = %d %s", rec.Code, rec.Body)
 	}
 }
+
+func TestWatchlist_AddRechecksPlayerWithBungieIdentity(t *testing.T) {
+	e := newTestEnv(t)
+	_, cookie := e.login(t, "Guardian#1993")
+	e.addProfile(3, "4611", "Real", 42)
+	body := map[string]any{"membershipType": 2, "membershipId": "4611", "source": "search"}
+	if rec := e.do(t, http.MethodPost, "/api/watchlist", body, cookie); rec.Code != http.StatusCreated {
+		t.Fatalf("add = %d %s", rec.Code, rec.Body)
+	}
+	got := e.engine.rechecked
+	if len(got) != 1 || got[0].MembershipType != 3 || got[0].MembershipID != "4611" {
+		t.Errorf("rechecked = %+v, want [{3 4611}]", got)
+	}
+}
+
+func TestWatchlist_NoRecheckWhenAddFails(t *testing.T) {
+	e := newTestEnv(t)
+	_, cookie := e.login(t, "Guardian#1993")
+	if rec := e.do(t, http.MethodPost, "/api/watchlist", addBody("4611"), cookie); rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown player = %d, want 404", rec.Code)
+	}
+	e.bungie.profileErr = &bungie.APIError{Code: bungie.CodeSystemDisabled, Status: "SystemDisabled"}
+	if rec := e.do(t, http.MethodPost, "/api/watchlist", addBody("4611"), cookie); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("maintenance = %d, want 503", rec.Code)
+	}
+	e.bungie.profileErr = nil
+	e.addProfile(3, "4611", "Real", 42)
+	e.store.addErr = store.ErrWatchlistFull
+	if rec := e.do(t, http.MethodPost, "/api/watchlist", addBody("4611"), cookie); rec.Code != http.StatusConflict {
+		t.Fatalf("full = %d, want 409", rec.Code)
+	}
+	if n := len(e.engine.rechecked); n != 0 {
+		t.Errorf("rechecked %d times on failed adds, want 0", n)
+	}
+}

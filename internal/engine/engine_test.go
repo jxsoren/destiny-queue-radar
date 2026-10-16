@@ -704,3 +704,95 @@ func TestEngine_NotFoundPlayerIsPolledOnce(t *testing.T) {
 		t.Errorf("calls = %d, want 1 (NOT_FOUND is terminal)", n)
 	}
 }
+
+// --- Recheck ---
+
+func notFoundPlayer(id string) store.Player {
+	p := player(id)
+	p.Status = status.Status{State: status.NotFound}
+	return p
+}
+
+func TestRecheck_PicksNotFoundEntryWithoutConsumingCooldown(t *testing.T) {
+	st := newFakeStore()
+	st.watch(1, notFoundPlayer("p1"))
+	e := New(testConfig(), st, newFakeProfiles(), always(status.Status{}), &fakeHub{active: []int64{1}}, quietLog())
+	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	e.now = func() time.Time { return now }
+	if err := e.refreshActiveSet(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	jobs := make(chan string, 4)
+	e.dispatch(jobs)
+	if len(jobs) != 0 {
+		t.Fatal("NOT_FOUND entry dispatched without a recheck")
+	}
+
+	e.Recheck(3, "p1")
+	e.dispatch(jobs)
+	if len(jobs) != 1 || <-jobs != "p1" {
+		t.Fatal("NOT_FOUND entry not dispatched after Recheck")
+	}
+	e.mu.Lock()
+	_, consumed := e.lastRefresh[1]
+	e.mu.Unlock()
+	if consumed {
+		t.Error("Recheck consumed a user's refresh cooldown")
+	}
+	if err := e.RequestRefresh(context.Background(), 1); err != nil {
+		t.Errorf("refresh after Recheck: %v", err)
+	}
+}
+
+func TestRecheck_InFlightPollsAgainAfterwards(t *testing.T) {
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	e.entries["p1"] = &entry{player: notFoundPlayer("p1"), inFlight: true}
+	e.Recheck(3, "p1")
+	if e.entries["p1"].manualAt.IsZero() {
+		t.Error("Recheck of an in-flight entry must queue another poll")
+	}
+}
+
+func TestRecheck_UnknownPlayerIsPolledAndSurvivesRefreshActiveSet(t *testing.T) {
+	st, pr := newFakeStore(), newFakeProfiles()
+	st.watch(1, notFoundPlayer("p1"))
+	h := &fakeHub{active: []int64{1}}
+	e := New(testConfig(), st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+
+	e.Recheck(3, "p1") // no entry yet
+	if err := e.refreshActiveSet(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	e.mu.Lock()
+	en := e.entries["p1"]
+	e.mu.Unlock()
+	if en == nil || en.player.Status.State == status.NotFound {
+		t.Fatalf("entry = %+v, want one that is not NOT_FOUND", en)
+	}
+
+	jobs := make(chan string, 4)
+	e.dispatch(jobs)
+	if len(jobs) != 1 {
+		t.Fatal("rechecked player not dispatched")
+	}
+	e.poll(context.Background(), <-jobs)
+	if pr.callCount("p1") != 1 {
+		t.Errorf("profile calls = %d, want 1", pr.callCount("p1"))
+	}
+	if got := st.get("p1").Status.State; got != status.InMatch {
+		t.Errorf("stored state = %s, want IN_MATCH", got)
+	}
+}
+
+func TestRecheck_PlayerGoneFromStoreIsHarmless(t *testing.T) {
+	st, pr := newFakeStore(), newFakeProfiles()
+	e := New(testConfig(), st, pr, always(status.Status{}), &fakeHub{}, quietLog())
+	e.Recheck(3, "ghost")
+	jobs := make(chan string, 1)
+	e.dispatch(jobs)
+	e.poll(context.Background(), <-jobs)
+	if pr.callCount("ghost") != 0 {
+		t.Error("polled a player that no longer exists")
+	}
+}

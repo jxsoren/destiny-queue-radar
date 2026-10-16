@@ -114,6 +114,8 @@ func (s *Server) handleAddWatch(w http.ResponseWriter, r *http.Request, u store.
 		s.internal(w, r, err)
 		return
 	}
+	// The player is Bungie-verified, so a stored NOT_FOUND is stale: poll right away.
+	s.d.Engine.Recheck(ref.MembershipType, ref.MembershipID)
 	w.WriteHeader(http.StatusCreated)
 }
 

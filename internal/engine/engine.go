@@ -217,6 +217,23 @@ func (e *Engine) RequestRefresh(ctx context.Context, userID int64) error {
 	return nil
 }
 
+// Recheck queues an immediate poll of one player. It is used after a player is verified to
+// exist (e.g. a re-add) so a stale NOT_FOUND is re-checked rather than waiting for a manual
+// refresh. It does not touch any user's refresh cooldown. If the player is mid-poll it polls
+// again afterwards.
+func (e *Engine) Recheck(membershipType int64, membershipID string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	en, ok := e.entries[membershipID]
+	if !ok {
+		// poll only needs the membership type; its zero Status keeps pickDue from skipping the
+		// entry as NOT_FOUND, and refreshActiveSet keeps entries with a pending manualAt.
+		en = &entry{player: store.Player{PlayerRef: store.PlayerRef{MembershipType: membershipType, MembershipID: membershipID}}}
+		e.entries[membershipID] = en
+	}
+	en.manualAt = e.now()
+}
+
 // entryLocked returns the scheduler entry for p, creating it from the stored poll time.
 func (e *Engine) entryLocked(p store.Player) *entry {
 	en, ok := e.entries[p.MembershipID]

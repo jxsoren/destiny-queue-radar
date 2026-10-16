@@ -34,6 +34,7 @@ type Store interface {
 // Engine is the subset of *engine.Engine the web layer uses.
 type Engine interface {
 	RequestRefresh(ctx context.Context, userID int64) error
+	Recheck(membershipType int64, membershipID string)
 	APIState() engine.APIState
 }
 

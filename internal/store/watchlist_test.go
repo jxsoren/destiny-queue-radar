@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/jxsoren/destiny-queue-radar/internal/status"
 )
 
 func mustUser(t *testing.T, s *Store, id string) User {
@@ -246,5 +248,35 @@ func TestAddWatch_CapLockBlocksConcurrentAdd(t *testing.T) {
 	must(t, err)
 	if len(list) != MaxWatchlist {
 		t.Errorf("len(list) = %d, want %d", len(list), MaxWatchlist)
+	}
+}
+
+func TestAddWatch_ResetsNotFoundStatusOnly(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	u := mustUser(t, s, "u1")
+	must(t, s.AddWatch(ctx, u.ID, ref("gone"), "", SourceSearch))
+	must(t, s.AddWatch(ctx, u.ID, ref("live"), "", SourceSearch))
+	at := time.Now()
+	must(t, s.SavePollSuccess(ctx, "gone", status.Status{State: status.NotFound}, "", "", at))
+	must(t, s.SavePollSuccess(ctx, "live", status.Status{State: status.InMatch, Mode: "Control"}, "", "", at))
+
+	u2 := mustUser(t, s, "u2")
+	must(t, s.AddWatch(ctx, u2.ID, ref("gone"), "", SourceSearch))
+	must(t, s.AddWatch(ctx, u2.ID, ref("live"), "", SourceSearch))
+
+	gone, err := s.Player(ctx, "gone")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gone.Status.State != "" {
+		t.Errorf("NOT_FOUND player state after re-add = %q, want empty", gone.Status.State)
+	}
+	live, err := s.Player(ctx, "live")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if live.Status.State != status.InMatch || live.Status.Mode != "Control" {
+		t.Errorf("IN_MATCH player status after re-add = %+v, want unchanged", live.Status)
 	}
 }

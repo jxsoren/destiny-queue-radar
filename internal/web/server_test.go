@@ -157,6 +157,7 @@ type fakeEngine struct {
 	state      engine.APIState
 	refreshErr error
 	refreshed  []int64
+	rechecked  []store.PlayerRef
 }
 
 func (f *fakeEngine) RequestRefresh(_ context.Context, userID int64) error {
@@ -164,6 +165,12 @@ func (f *fakeEngine) RequestRefresh(_ context.Context, userID int64) error {
 	defer f.mu.Unlock()
 	f.refreshed = append(f.refreshed, userID)
 	return f.refreshErr
+}
+
+func (f *fakeEngine) Recheck(membershipType int64, membershipID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rechecked = append(f.rechecked, store.PlayerRef{MembershipType: membershipType, MembershipID: membershipID})
 }
 
 func (f *fakeEngine) APIState() engine.APIState {

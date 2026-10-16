@@ -32,7 +32,7 @@ func pickDue(entries map[string]*entry, now time.Time, interval time.Duration, l
 		}
 		manual := !e.manualAt.IsZero()
 		if !manual && e.player.Status.State == status.NotFound {
-			continue // terminal: only a manual refresh re-checks it
+			continue // terminal: only a manual refresh or Recheck re-checks it
 		}
 		if !manual && now.Sub(e.lastPolled) < interval {
 			continue
