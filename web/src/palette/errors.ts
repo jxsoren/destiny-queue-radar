@@ -7,7 +7,8 @@ export function paletteError(err: unknown, ctx: ErrorContext): string {
   if (!(err instanceof ApiError)) return 'COULD NOT REACH QUEUE RADAR';
   switch (err.status) {
     case 401:
-      return err.reauth ? 'SIGN IN AGAIN TO SEE YOUR MATCHES' : 'SIGNED OUT';
+      if (!err.reauth) return 'SIGNED OUT';
+      return ctx === 'matches' ? 'SIGN IN AGAIN TO SEE YOUR MATCHES' : 'SIGN IN AGAIN';
     case 404:
       return 'PLAYER NOT FOUND';
     case 409:

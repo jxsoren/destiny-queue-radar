@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { ApiError } from '../api/client';
@@ -21,7 +21,7 @@ const olderMatch = makeMatch({
   players: [makeParticipant({ membershipId: 'k', bungieName: 'Kestrel#0412' }), makeParticipant({ membershipId: 'me', bungieName: 'Tester#0001', isSelf: true })],
 });
 
-function setup(over: Partial<Record<'recentMatches' | 'search' | 'addWatch', ReturnType<typeof vi.fn>>> = {}) {
+function setup(over: Partial<Record<'recentMatches' | 'search' | 'addWatch', ReturnType<typeof vi.fn>>> = {}, fakeTimers = false) {
   const client = {
     recentMatches: vi.fn().mockResolvedValue([lastMatch, olderMatch]),
     search: vi.fn().mockResolvedValue({ membershipType: 3, membershipId: '9', bungieName: 'Ghost#0880', emblemPath: '/g.jpg' }),
@@ -32,7 +32,7 @@ function setup(over: Partial<Record<'recentMatches' | 'search' | 'addWatch', Ret
   const onAdded = vi.fn();
   const watchedIds = new Set(['w1']);
   render(<Palette open onClose={onClose} client={client} watchedIds={watchedIds} onAdded={onAdded} />);
-  return { client, onClose, onAdded, user: userEvent.setup() };
+  return { client, onClose, onAdded, user: userEvent.setup(fakeTimers ? { advanceTimers: (ms) => void vi.advanceTimersByTime(ms) } : undefined) };
 }
 
 const input = () => screen.getByRole('combobox');
@@ -144,5 +144,102 @@ describe('Palette', () => {
     await screen.findByRole('option', { name: /Vex#1111/ });
     await user.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalledOnce();
+  });
+});
+
+describe('Palette accessibility and behaviour', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test('the active option and the input have visible indicators', async () => {
+    setup();
+    const vex = await screen.findByRole('option', { name: /Vex#1111/ });
+    const me = screen.getByRole('option', { name: /Tester#0001/ });
+    expect(me).toHaveClass('outline', 'outline-2', '-outline-offset-2', 'outline-ink', 'text-ink');
+    expect(vex).not.toHaveClass('outline-ink');
+    expect(input().className).not.toContain('focus:outline-none');
+    expect(input()).toHaveClass('focus-visible:border-b-2', 'focus-visible:border-ink');
+  });
+
+  test('the active option is scrolled into view', async () => {
+    const { user } = setup();
+    await screen.findByRole('option', { name: /Vex#1111/ });
+    (Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mockClear();
+    await user.keyboard('{ArrowDown}');
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+  });
+
+  test('only options live inside the listbox; notes sit in a status region', async () => {
+    setup({ recentMatches: vi.fn().mockRejectedValue(new ApiError(401, 'sign in again', null, true)) });
+    const note = await screen.findByText(/SIGN IN AGAIN TO SEE YOUR MATCHES/);
+    expect(note.closest('[role=listbox]')).toBeNull();
+    expect(note.closest('[role=status]')).not.toBeNull();
+    const listbox = screen.getByRole('listbox');
+    expect(listbox.querySelectorAll('a, [role=status]')).toHaveLength(0);
+    expect(document.getElementById('palette-group-your-last-match')).toHaveAttribute('role', 'presentation');
+  });
+
+  test('lobby options say whether they are expanded', async () => {
+    const { user } = setup();
+    const lobby = await screen.findByRole('option', { name: /CONTROL.*, collapsed/ });
+    await user.click(lobby);
+    expect(await screen.findByRole('option', { name: /CONTROL.*, expanded/ })).toBeInTheDocument();
+  });
+
+  test('a successful add is announced politely', async () => {
+    const { user } = setup();
+    await user.click(await screen.findByRole('option', { name: /Vex#1111/ }));
+    const said = await screen.findByText('WATCHING VEX#1111');
+    expect(said.closest('[role=status]')).toHaveAttribute('aria-live', 'polite');
+  });
+
+  test('typing clears the previous error', async () => {
+    const { user } = setup({ addWatch: vi.fn().mockRejectedValue(new ApiError(409, 'x', null, false)) });
+    await user.click(await screen.findByRole('option', { name: /Vex#1111/ }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    await user.type(input(), 'v');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  test('a double Enter sends one POST', async () => {
+    const { client } = setup({ addWatch: vi.fn().mockReturnValue(new Promise(() => {})) });
+    await screen.findByRole('option', { name: /Vex#1111/ });
+    fireEvent.keyDown(input(), { key: 'ArrowDown' });
+    act(() => {
+      fireEvent.keyDown(input(), { key: 'Enter' });
+      fireEvent.keyDown(input(), { key: 'Enter' });
+    });
+    expect(client.addWatch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Palette search debounce', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    Element.prototype.scrollIntoView = vi.fn();
+    // Testing Library's asyncWrapper only advances fake timers when it sees a `jest` global.
+    Object.assign(globalThis, { jest: { advanceTimersByTime: (ms: number) => vi.advanceTimersByTime(ms) } });
+  });
+  afterEach(() => {
+    delete (globalThis as { jest?: unknown }).jest;
+    vi.useRealTimers();
+  });
+
+  test('searches once, 300ms after the last keystroke, with the final name', async () => {
+    const { client, user } = setup({}, true);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    await user.type(input(), 'Ghost#0880');
+    await act(() => vi.advanceTimersByTimeAsync(299));
+    expect(client.search).not.toHaveBeenCalled();
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(client.search).toHaveBeenCalledTimes(1);
+    expect(client.search).toHaveBeenCalledWith('Ghost#0880');
   });
 });

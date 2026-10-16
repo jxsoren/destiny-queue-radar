@@ -5,10 +5,11 @@ export function TrackSlot({ onOpen, large = false }: { onOpen: () => void; large
       <button
         type="button"
         onClick={onOpen}
+        aria-keyshortcuts="/"
         className={`tele flex w-full items-center justify-between border-2 border-dashed border-dim px-4 text-dim hover:border-ink hover:text-ink ${large ? 'py-16 text-sm' : 'py-4'}`}
       >
         <span>+ TRACK A PLAYER</span>
-        <kbd className="border border-dim px-2 py-0.5 text-ink">/</kbd>
+        <kbd aria-hidden="true" className="border border-dim px-2 py-0.5 text-ink">/</kbd>
       </button>
     </div>
   );

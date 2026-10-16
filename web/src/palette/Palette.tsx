@@ -47,6 +47,8 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
   const [search, setSearch] = useState<SearchResult | null>(null);
   const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
+  const addingRef = useRef(false);
+  const [announcement, setAnnouncement] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -94,21 +96,28 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
   const rows = useMemo(() => flatten(groups), [groups]);
   const index = rows.length === 0 ? -1 : Math.min(active, rows.length - 1);
 
+  useEffect(() => {
+    if (index >= 0) document.getElementById(rowId(rows[index]))?.scrollIntoView?.({ block: 'nearest' });
+  }, [index, rows]);
+
   async function act(row: Row) {
     if (row.kind === 'lobby') {
       setExpanded((s) => toggled(s, row.instanceId));
       return;
     }
-    if (row.isSelf || row.watching || adding) return;
+    if (row.isSelf || row.watching || addingRef.current) return;
+    addingRef.current = true;
     setAdding(row.membershipId);
     setError(null);
     try {
       await client.addWatch({ membershipType: row.membershipType, membershipId: row.membershipId, source: row.source });
       setAdded((s) => new Set(s).add(row.membershipId));
+      setAnnouncement(`WATCHING ${displayName(row).toUpperCase()}`);
       onAdded();
     } catch (err) {
       setError(paletteError(err, 'add'));
     } finally {
+      addingRef.current = false;
       setAdding(null);
     }
   }
@@ -165,40 +174,40 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
+          setError(null);
           setActive(0);
         }}
         onKeyDown={onKeyDown}
-        className="tele w-full bg-ground px-4 py-4 text-[13px] text-ink placeholder:text-dim focus:outline-none"
+        className="tele w-full bg-ground px-4 py-4 text-[13px] text-ink placeholder:text-dim border-b-2 border-transparent focus-visible:border-b-2 focus-visible:border-ink focus-visible:outline-none"
       />
       {error && (
         <p role="alert" className="tele bg-raised px-4 py-2 text-accent">
           {error}
         </p>
       )}
+      <div role="status" className="empty:hidden">
+        {recent.kind === 'loading' && <Note>LOADING YOUR MATCHES…</Note>}
+        {recent.kind === 'error' &&
+          (needsReauth(recent.error) ? (
+            <Note accent>
+              SIGN IN AGAIN TO SEE YOUR MATCHES ·{' '}
+              <a href="/auth/login" className="underline">
+                SIGN IN
+              </a>
+            </Note>
+          ) : (
+            <Note accent>{paletteError(recent.error, 'matches')}</Note>
+          ))}
+        {recent.kind === 'ready' && matches.length === 0 && <Note>NO RECENT PVP MATCHES</Note>}
+        {searching && <Note>SEARCHING BUNGIE…</Note>}
+      </div>
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
       <div id="palette-list" role="listbox" aria-label="Players" className="max-h-[60vh] overflow-y-auto bg-ground">
-        <Group title="YOUR LAST MATCH">
-          {recent.kind === 'loading' && <Note>LOADING YOUR MATCHES…</Note>}
-          {recent.kind === 'error' &&
-            (needsReauth(recent.error) ? (
-              <Note accent>
-                SIGN IN AGAIN TO SEE YOUR MATCHES ·{' '}
-                <a href="/auth/login" className="underline">
-                  SIGN IN
-                </a>
-              </Note>
-            ) : (
-              <Note accent>{paletteError(recent.error, 'matches')}</Note>
-            ))}
-          {recent.kind === 'ready' && matches.length === 0 && <Note>NO RECENT PVP MATCHES</Note>}
-          {renderRows(groups.last)}
-        </Group>
+        <Group title="YOUR LAST MATCH">{renderRows(groups.last)}</Group>
         {groups.older.length > 0 && <Group title="OLDER LOBBIES">{renderRows(groups.older)}</Group>}
-        {(searching || groups.search.length > 0) && (
-          <Group title="BUNGIE SEARCH">
-            {searching && <Note>SEARCHING BUNGIE…</Note>}
-            {renderRows(groups.search)}
-          </Group>
-        )}
+        {groups.search.length > 0 && <Group title="BUNGIE SEARCH">{renderRows(groups.search)}</Group>}
       </div>
     </Dialog>
   );
@@ -208,7 +217,7 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
   const id = `palette-group-${title.toLowerCase().replace(/\W+/g, '-')}`;
   return (
     <div role="group" aria-labelledby={id} className="pb-2">
-      <p id={id} className="tele px-4 pb-1 pt-3 text-dim">
+      <p id={id} role="presentation" className="tele px-4 pb-1 pt-3 text-dim">
         {title}
       </p>
       {children}
@@ -229,7 +238,7 @@ interface RowViewProps {
 }
 
 function RowView({ row, active, adding, onAct, onHover }: RowViewProps) {
-  const base = `flex cursor-pointer items-center gap-3 px-4 py-2 ${active ? 'bg-raised' : ''}`;
+  const base = `flex cursor-pointer items-center gap-3 px-4 py-2 ${active ? 'bg-raised text-ink outline outline-2 -outline-offset-2 outline-ink' : ''}`;
   const common = {
     id: rowId(row),
     role: 'option' as const,
@@ -240,7 +249,7 @@ function RowView({ row, active, adding, onAct, onHover }: RowViewProps) {
   };
   if (row.kind === 'lobby') {
     return (
-      <div {...common} className={`tele justify-between ${base} ${active ? 'text-ink' : 'text-dim'}`}>
+      <div {...common} aria-label={`${row.summary}, ${row.expanded ? 'expanded' : 'collapsed'}`} className={`tele justify-between ${base} ${active ? 'text-ink' : 'text-dim'}`}>
         <span>{row.summary}</span>
         <span aria-hidden="true">{row.expanded ? '−' : '+'}</span>
       </div>

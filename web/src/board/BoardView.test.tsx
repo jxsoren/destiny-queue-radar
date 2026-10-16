@@ -36,6 +36,8 @@ test('phone tabs pick the visible column', async () => {
   expect(screen.getByRole('region', { name: /^OFFLINE/ })).toHaveClass('hidden');
   await user.click(screen.getByRole('button', { name: /OFFLINE/ }));
   expect(screen.getByRole('button', { name: /OFFLINE/ })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: /OFFLINE/ })).toHaveClass('border-ink');
+  expect(screen.getByRole('button', { name: /IN MATCH/ })).not.toHaveClass('border-ink');
   expect(screen.getByRole('region', { name: /^OFFLINE/ })).not.toHaveClass('hidden');
   expect(screen.getByRole('region', { name: /^IN MATCH/ })).toHaveClass('hidden');
 });

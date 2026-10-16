@@ -37,7 +37,7 @@ export function Header(p: HeaderProps) {
         <button type="button" className={button} disabled={cooling || p.refreshing} onClick={p.onRefresh}>
           {cooling ? `REFRESH ${Math.ceil(p.cooldownLeft / 1000)}S` : 'REFRESH'}
         </button>
-        <button type="button" className={button} aria-pressed={p.managing} onClick={p.onToggleManage}>
+        <button type="button" className={button} onClick={p.onToggleManage}>
           {p.managing ? 'DONE' : 'MANAGE'}
         </button>
         <button type="button" className={button} onClick={p.onSignOut}>

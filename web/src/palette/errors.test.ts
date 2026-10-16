@@ -14,6 +14,7 @@ describe('paletteError (spec §4 table)', () => {
     [err(503), 'add', 'BUNGIE UNAVAILABLE'],
     [err(502), 'search', 'COULD NOT REACH BUNGIE'],
     [err(401, null, true), 'matches', 'SIGN IN AGAIN TO SEE YOUR MATCHES'],
+    [err(401, null, true), 'add', 'SIGN IN AGAIN'],
     [err(409), 'matches', 'NO DESTINY 2 ACCOUNT LINKED · SIGN IN AGAIN'],
     [err(400), 'search', 'ENTER A BUNGIE NAME LIKE NAME#1234'],
     [err(500), 'add', 'SOMETHING WENT WRONG'],

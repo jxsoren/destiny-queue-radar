@@ -55,7 +55,7 @@ test('refresh, manage and sign out buttons', async () => {
   await user.click(screen.getByRole('button', { name: 'REFRESH' }));
   expect(props.onRefresh).toHaveBeenCalledOnce();
   const toggle = screen.getByRole('button', { name: 'DONE' });
-  expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  expect(toggle).not.toHaveAttribute('aria-pressed');
   await user.click(toggle);
   expect(props.onToggleManage).toHaveBeenCalledOnce();
   await user.click(screen.getByRole('button', { name: 'SIGN OUT' }));

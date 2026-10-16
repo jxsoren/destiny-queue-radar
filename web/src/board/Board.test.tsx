@@ -70,6 +70,8 @@ describe('Board', () => {
     await user.click(screen.getByRole('button', { name: 'Stop watching Vex#1111' }));
     expect(screen.queryByTestId('card-4611')).toBeNull();
     expect(screen.getByText('STOPPED WATCHING VEX#1111 ·')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'UNDO' })).toHaveFocus();
+    expect(screen.getByTestId('board-root')).toHaveClass('pb-40');
     await user.click(screen.getByRole('button', { name: 'UNDO' }));
     expect(screen.getByTestId('card-4611')).toBeInTheDocument();
     expect(client.removeWatch).not.toHaveBeenCalled();
@@ -80,7 +82,7 @@ describe('Board', () => {
     snapshot();
     await user.click(screen.getByRole('button', { name: 'MANAGE' }));
     await user.keyboard('{Escape}');
-    expect(screen.getByRole('button', { name: 'MANAGE' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'MANAGE' })).toBeInTheDocument();
   });
 
   test('refresh starts the cooldown; sign out logs out and leaves', async () => {

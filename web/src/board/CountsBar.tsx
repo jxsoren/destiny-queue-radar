@@ -31,7 +31,7 @@ export function CountsBar({ counts, phoneColumn, onPhoneColumn }: CountsBarProps
               type="button"
               aria-pressed={selected}
               onClick={() => onPhoneColumn(c.id)}
-              className={`px-2 py-2 text-left ${selected ? 'bg-raised' : 'bg-ground'}`}
+              className={`border-b-2 px-2 py-2 text-left ${selected ? 'border-ink bg-raised' : 'border-transparent bg-ground'}`}
             >
               <span className={`macro block text-3xl ${hot(c.id) ? 'text-accent' : 'text-ink'}`}>{pad2(counts[c.id])}</span>
               <span className="tele block text-dim">{c.label}</span>

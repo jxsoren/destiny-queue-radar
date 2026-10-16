@@ -92,7 +92,7 @@ export function Board({ onSignedOut, client = defaultApi, stream }: BoardProps) 
   }
 
   return (
-    <div className="scanlines min-h-screen bg-ground pb-24 text-ink">
+    <div data-testid="board-root" className={`scanlines min-h-screen bg-ground text-ink ${removal.pending || removeError ? 'pb-40' : 'pb-24'}`}>
       <div className="grid gap-px bg-line">
         <Header
           watching={state.players.size}
