@@ -317,6 +317,16 @@ func TestTokenEndpointErrors(t *testing.T) {
 	if _, err := tm.Exchange(ctx, "c"); !errors.Is(err, ErrClientConfig) {
 		t.Errorf("invalid_client: %v", err)
 	}
+	badCode := &tokenServer{status: http.StatusBadRequest, errCode: "invalid_grant"}
+	tm, _, _ = newManager(t, badCode)
+	if _, err := tm.Exchange(ctx, "c"); !errors.Is(err, ErrGrantRejected) {
+		t.Errorf("authorization_code invalid_grant: %v", err)
+	}
+	emptyBody := &tokenServer{status: http.StatusBadRequest}
+	tm, _, _ = newManager(t, emptyBody)
+	if _, err := tm.Exchange(ctx, "c"); err == nil || errors.Is(err, ErrReauthRequired) || errors.Is(err, ErrClientConfig) || errors.Is(err, ErrGrantRejected) {
+		t.Errorf("400 with empty body: %v", err)
+	}
 	boom := &tokenServer{status: http.StatusInternalServerError}
 	tm, _, _ = newManager(t, boom)
 	err := func() error { _, err := tm.Exchange(ctx, "c"); return err }()
@@ -363,7 +373,7 @@ func TestAccessToken_LockRespectsContext(t *testing.T) {
 
 func TestTokenResponse_RedactsTokens(t *testing.T) {
 	r := TokenResponse{AccessToken: "SECRET-A", RefreshToken: "SECRET-R", MembershipID: "m"}
-	for _, out := range []string{fmt.Sprintf("%v", r), fmt.Sprintf("%+v", r), fmt.Sprint(&r)} {
+	for _, out := range []string{fmt.Sprintf("%v", r), fmt.Sprintf("%+v", r), fmt.Sprintf("%#v", r), fmt.Sprint(&r)} {
 		if strings.Contains(out, "SECRET") {
 			t.Errorf("leaked: %s", out)
 		}

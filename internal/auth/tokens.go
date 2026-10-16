@@ -53,6 +53,9 @@ func (r TokenResponse) String() string {
 	return fmt.Sprintf("TokenResponse{membership_id=%s tokens=[redacted]}", r.MembershipID)
 }
 
+// GoString redacts the tokens for %#v.
+func (r TokenResponse) GoString() string { return r.String() }
+
 // LogValue redacts the tokens for slog.
 func (r TokenResponse) LogValue() slog.Value {
 	return slog.StringValue(r.String())
@@ -76,7 +79,8 @@ type TokenManager struct {
 	now          func() time.Time
 	// locks maps userID to a 1-slot channel: one refresh at a time per user, abandonable via ctx.
 	// The map is bounded by the number of users. It assumes a single process; multiple instances
-	// would need a database lock instead.
+	// would need a database lock instead. The lock is not reentrant: never acquire it from inside
+	// AccessToken or from the token transport.
 	locks sync.Map
 }
 
