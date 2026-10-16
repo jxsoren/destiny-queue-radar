@@ -77,6 +77,7 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	log.Info("manifest loaded", "version", man.Version)
+	live := manifest.NewLive(man, client, log, manifest.Config{})
 
 	box, err := cryptobox.New(cfg.TokenKey)
 	if err != nil {
@@ -84,7 +85,7 @@ func run(log *slog.Logger) error {
 	}
 	tokens := auth.NewTokenManager(st, box, cfg.OAuthClientID, cfg.OAuthClientSecret, cfg.BungieBaseURL, nil)
 	h := hub.New(32)
-	eng := engine.New(engineConfig(), st, client, client, classifier.New(man), h, log)
+	eng := engine.New(engineConfig(), st, client, client, classifier.New(live), h, log)
 	// Closed when Shutdown begins, so open SSE streams end while normal requests drain.
 	streamsDone := make(chan struct{})
 	handler := web.New(web.Deps{
@@ -93,7 +94,7 @@ func run(log *slog.Logger) error {
 		Hub:           h,
 		Bungie:        client,
 		Tokens:        tokens,
-		Matches:       matches.New(client, client, stats, man),
+		Matches:       matches.New(client, client, stats, live),
 		Static:        webui.FS(),
 		OAuthClientID: cfg.OAuthClientID,
 		Done:          streamsDone,
@@ -115,10 +116,14 @@ func run(log *slog.Logger) error {
 	srv.RegisterOnShutdown(func() { close(streamsDone) })
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
 		eng.Run(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		live.Run(ctx)
 	}()
 	go func() {
 		defer wg.Done()

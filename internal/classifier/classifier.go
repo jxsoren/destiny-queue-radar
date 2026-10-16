@@ -18,7 +18,7 @@ const (
 	orbitActivityHash uint32 = 82913930
 )
 
-// Lookup is implemented by *manifest.Manifest.
+// Lookup is implemented by *manifest.Manifest and *manifest.Live.
 type Lookup interface {
 	Activity(hash uint32) (manifest.Activity, bool)
 	Mode(hash uint32) (manifest.Mode, bool)
@@ -30,6 +30,8 @@ type Classifier struct {
 }
 
 var _ status.Classifier = (*Classifier)(nil)
+
+var _ Lookup = (*manifest.Live)(nil)
 
 func New(l Lookup) *Classifier { return &Classifier{lookup: l} }
 

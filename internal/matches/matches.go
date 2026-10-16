@@ -29,10 +29,12 @@ type Reports interface {
 	GetPGCR(ctx context.Context, instanceID string) (*bungie.PGCR, error)
 }
 
-// Lookup is implemented by *manifest.Manifest.
+// Lookup is implemented by *manifest.Manifest and *manifest.Live.
 type Lookup interface {
 	Activity(hash uint32) (manifest.Activity, bool)
 }
+
+var _ Lookup = (*manifest.Live)(nil)
 
 type Participant struct {
 	MembershipType int64  `json:"membershipType"`
