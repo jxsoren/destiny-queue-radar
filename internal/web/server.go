@@ -111,6 +111,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /auth/logout", s.mutating(s.handleLogout))
 	s.mux.HandleFunc("GET /api/me", s.authed(s.handleMe))
 	s.mux.HandleFunc("DELETE /api/me", s.mutating(s.authed(s.handleDeleteMe)))
+	s.mux.HandleFunc("GET /api/watchlist", s.authed(s.handleWatchlist))
+	s.mux.HandleFunc("POST /api/watchlist", s.mutating(s.authed(s.handleAddWatch)))
+	s.mux.HandleFunc("PATCH /api/watchlist/{membershipId}", s.mutating(s.authed(s.handleUpdateNote)))
+	s.mux.HandleFunc("DELETE /api/watchlist/{membershipId}", s.mutating(s.authed(s.handleRemoveWatch)))
+	s.mux.HandleFunc("GET /api/search", s.authed(s.handleSearch))
 }
 
 type userHandler func(w http.ResponseWriter, r *http.Request, u store.User)
