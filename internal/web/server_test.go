@@ -123,24 +123,11 @@ func (f *fakeStore) AddWatch(_ context.Context, userID int64, p store.PlayerRef,
 	list := f.watch[userID]
 	for i := range list {
 		if list[i].MembershipID == p.MembershipID {
-			list[i].Note = note
 			return nil
 		}
 	}
 	f.watch[userID] = append(list, store.WatchedPlayer{Player: store.Player{PlayerRef: p}, Note: note, Source: source})
 	return nil
-}
-
-func (f *fakeStore) UpdateNote(_ context.Context, userID int64, id, note string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for i, w := range f.watch[userID] {
-		if w.MembershipID == id {
-			f.watch[userID][i].Note = note
-			return nil
-		}
-	}
-	return store.ErrNotFound
 }
 
 func (f *fakeStore) RemoveWatch(_ context.Context, userID int64, id string) error {

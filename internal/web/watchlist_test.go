@@ -12,10 +12,10 @@ import (
 )
 
 func addBody(id string) map[string]any {
-	return map[string]any{"membershipType": 3, "membershipId": id, "bungieName": "Player#0001", "note": "aimbot", "source": "search"}
+	return map[string]any{"membershipType": 3, "membershipId": id, "bungieName": "Player#0001", "source": "search"}
 }
 
-func TestWatchlist_AddListUpdateRemove(t *testing.T) {
+func TestWatchlist_AddListRemove(t *testing.T) {
 	e := newTestEnv(t)
 	u, cookie := e.login(t, "Guardian#1993")
 	e.addProfile(3, "4611", "Player", 1)
@@ -30,24 +30,35 @@ func TestWatchlist_AddListUpdateRemove(t *testing.T) {
 		t.Fatalf("list = %d", rec.Code)
 	}
 	list := decode[[]playerJSON](t, rec)
-	if len(list) != 1 || list[0].MembershipID != "4611" || list[0].Note != "aimbot" || list[0].Status.State != status.InMatch || list[0].BungieName != "Player#0001" {
+	if len(list) != 1 || list[0].MembershipID != "4611" || list[0].Status.State != status.InMatch || list[0].BungieName != "Player#0001" {
 		t.Errorf("list = %+v", list)
-	}
-
-	if rec := e.do(t, http.MethodPatch, "/api/watchlist/4611", map[string]any{"note": "wallhacks"}, cookie); rec.Code != http.StatusNoContent {
-		t.Errorf("patch = %d %s", rec.Code, rec.Body)
-	}
-	if e.store.watch[u.ID][0].Note != "wallhacks" {
-		t.Error("note not updated")
-	}
-	if rec := e.do(t, http.MethodPatch, "/api/watchlist/999", map[string]any{"note": "x"}, cookie); rec.Code != http.StatusNotFound {
-		t.Errorf("patch unknown = %d", rec.Code)
 	}
 	if rec := e.do(t, http.MethodDelete, "/api/watchlist/4611", nil, cookie); rec.Code != http.StatusNoContent {
 		t.Errorf("delete = %d", rec.Code)
 	}
 	if rec := e.do(t, http.MethodDelete, "/api/watchlist/4611", nil, cookie); rec.Code != http.StatusNotFound {
 		t.Errorf("delete again = %d", rec.Code)
+	}
+}
+
+func TestWatchlist_HasNoNotes(t *testing.T) {
+	e := newTestEnv(t)
+	_, cookie := e.login(t, "Guardian#1993")
+	e.addProfile(3, "4611", "Player", 1)
+	withNote := addBody("4611")
+	withNote["note"] = "aimbot"
+	if rec := e.do(t, http.MethodPost, "/api/watchlist", withNote, cookie); rec.Code != http.StatusBadRequest {
+		t.Errorf("add with note = %d, want 400 (unknown field)", rec.Code)
+	}
+	if rec := e.do(t, http.MethodPost, "/api/watchlist", addBody("4611"), cookie); rec.Code != http.StatusCreated {
+		t.Fatalf("add = %d %s", rec.Code, rec.Body)
+	}
+	rec := e.do(t, http.MethodGet, "/api/watchlist", nil, cookie)
+	if strings.Contains(rec.Body.String(), `"note"`) {
+		t.Errorf("watchlist JSON still has a note: %s", rec.Body)
+	}
+	if rec := e.do(t, http.MethodPatch, "/api/watchlist/4611", map[string]any{"note": "x"}, cookie); rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("patch = %d, want 405", rec.Code)
 	}
 }
 
@@ -68,7 +79,6 @@ func TestWatchlist_AddValidation(t *testing.T) {
 		{"membershipType": 3, "membershipId": "12ab", "source": "search"},
 		{"membershipType": 0, "membershipId": "4611", "source": "search"},
 		{"membershipType": 3, "membershipId": "4611", "source": "rumor"},
-		{"membershipType": 3, "membershipId": "4611", "source": "search", "note": strings.Repeat("x", maxNoteLen+1)},
 		{"membershipType": 3, "membershipId": "4611", "source": "search", "extra": true},
 		{"membershipType": 999, "membershipId": "4611", "source": "search"},
 		{"membershipType": 10, "membershipId": "4611", "source": "search"},
@@ -80,31 +90,13 @@ func TestWatchlist_AddValidation(t *testing.T) {
 			t.Errorf("case %d: code = %d, want 400", i, rec.Code)
 		}
 	}
-	if rec := e.do(t, http.MethodPatch, "/api/watchlist/4611", map[string]any{"note": strings.Repeat("x", maxNoteLen+1)}, cookie); rec.Code != http.StatusBadRequest {
-		t.Errorf("long note patch = %d", rec.Code)
-	}
-}
-
-func TestWatchlist_NoteLimitCountsRunes(t *testing.T) {
-	e := newTestEnv(t)
-	_, cookie := e.login(t, "Guardian#1993")
-	e.addProfile(3, "4611", "Player", 1)
-	body := addBody("4611")
-	body["note"] = strings.Repeat("é", maxNoteLen)
-	if rec := e.do(t, http.MethodPost, "/api/watchlist", body, cookie); rec.Code != http.StatusCreated {
-		t.Errorf("%d multibyte runes = %d, want 201", maxNoteLen, rec.Code)
-	}
-	body["note"] = strings.Repeat("é", maxNoteLen+1)
-	if rec := e.do(t, http.MethodPost, "/api/watchlist", body, cookie); rec.Code != http.StatusBadRequest {
-		t.Errorf("%d multibyte runes = %d, want 400", maxNoteLen+1, rec.Code)
-	}
 }
 
 func TestWatchlist_PathIDsValidated(t *testing.T) {
 	e := newTestEnv(t)
 	_, cookie := e.login(t, "Guardian#1993")
-	if rec := e.do(t, http.MethodPatch, "/api/watchlist/abc", map[string]any{"note": "x"}, cookie); rec.Code != http.StatusBadRequest {
-		t.Errorf("patch bad id = %d", rec.Code)
+	if rec := e.do(t, http.MethodDelete, "/api/watchlist/abc", nil, cookie); rec.Code != http.StatusBadRequest {
+		t.Errorf("delete bad id = %d", rec.Code)
 	}
 	if rec := e.do(t, http.MethodDelete, "/api/watchlist/"+strings.Repeat("1", 20), nil, cookie); rec.Code != http.StatusBadRequest {
 		t.Errorf("delete long id = %d", rec.Code)

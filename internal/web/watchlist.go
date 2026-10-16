@@ -4,14 +4,11 @@ import (
 	"errors"
 	"net/http"
 	"time"
-	"unicode/utf8"
 
 	"github.com/jxsoren/destiny-queue-radar/internal/bungie"
 	"github.com/jxsoren/destiny-queue-radar/internal/status"
 	"github.com/jxsoren/destiny-queue-radar/internal/store"
 )
-
-const maxNoteLen = 200
 
 // playerJSON is a watched player as the dashboard sees it (also used in the SSE snapshot).
 type playerJSON struct {
@@ -23,7 +20,6 @@ type playerJSON struct {
 	Status               status.Status `json:"status"`
 	LastPolledAt         *time.Time    `json:"lastPolledAt"`
 	LastSuccessAt        *time.Time    `json:"lastSuccessAt"`
-	Note                 string        `json:"note"`
 	Source               string        `json:"source"`
 	AddedAt              time.Time     `json:"addedAt"`
 }
@@ -35,7 +31,7 @@ func toPlayersJSON(list []store.WatchedPlayer) []playerJSON {
 			MembershipType: w.MembershipType, MembershipID: w.MembershipID, BungieName: w.BungieName,
 			EmblemPath: w.EmblemPath, EmblemBackgroundPath: w.EmblemBackgroundPath, Status: w.Status,
 			LastPolledAt: w.LastPolledAt, LastSuccessAt: w.LastSuccessAt,
-			Note: w.Note, Source: w.Source, AddedAt: w.AddedAt,
+			Source: w.Source, AddedAt: w.AddedAt,
 		})
 	}
 	return out
@@ -55,7 +51,6 @@ type addWatchRequest struct {
 	MembershipID   string `json:"membershipId"`
 	// BungieName is accepted for compatibility but ignored: identity comes from Bungie.
 	BungieName string `json:"bungieName"`
-	Note       string `json:"note"`
 	Source     string `json:"source"`
 }
 
@@ -77,9 +72,6 @@ func (s *Server) handleAddWatch(w http.ResponseWriter, r *http.Request, u store.
 		return
 	case req.Source != store.SourceSearch && req.Source != store.SourceMatch:
 		writeError(w, http.StatusBadRequest, `source must be "search" or "match"`)
-		return
-	case utf8.RuneCountInString(req.Note) > maxNoteLen:
-		writeError(w, http.StatusBadRequest, "note is too long")
 		return
 	}
 	if !s.allowLookup(w, u) {
@@ -112,7 +104,7 @@ func (s *Server) handleAddWatch(w http.ResponseWriter, r *http.Request, u store.
 			ref.BungieName = bungie.FormatBungieName(n, d.UserInfo.BungieGlobalDisplayNameCode)
 		}
 	}
-	err = s.d.Store.AddWatch(r.Context(), u.ID, ref, req.Note, req.Source)
+	err = s.d.Store.AddWatch(r.Context(), u.ID, ref, "", req.Source)
 	if errors.Is(err, store.ErrWatchlistFull) {
 		writeError(w, http.StatusConflict, "your watchlist is full")
 		return
@@ -122,35 +114,6 @@ func (s *Server) handleAddWatch(w http.ResponseWriter, r *http.Request, u store.
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-}
-
-func (s *Server) handleUpdateNote(w http.ResponseWriter, r *http.Request, u store.User) {
-	var req struct {
-		Note string `json:"note"`
-	}
-	id := r.PathValue("membershipId")
-	if !isDigits(id) {
-		writeError(w, http.StatusBadRequest, "invalid membership id")
-		return
-	}
-	if err := decodeJSON(w, r, &req); err != nil {
-		badBody(w, err)
-		return
-	}
-	if utf8.RuneCountInString(req.Note) > maxNoteLen {
-		writeError(w, http.StatusBadRequest, "note is too long")
-		return
-	}
-	err := s.d.Store.UpdateNote(r.Context(), u.ID, id, req.Note)
-	if errors.Is(err, store.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "not on your watchlist")
-		return
-	}
-	if err != nil {
-		s.internal(w, r, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleRemoveWatch(w http.ResponseWriter, r *http.Request, u store.User) {

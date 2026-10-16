@@ -26,7 +26,6 @@ type Store interface {
 	SetDestinyMembership(ctx context.Context, userID, membershipType int64, membershipID string) error
 	DeleteUser(ctx context.Context, userID int64) error
 	AddWatch(ctx context.Context, userID int64, p store.PlayerRef, note, source string) error
-	UpdateNote(ctx context.Context, userID int64, membershipID, note string) error
 	RemoveWatch(ctx context.Context, userID int64, membershipID string) error
 	Watchlist(ctx context.Context, userID int64) ([]store.WatchedPlayer, error)
 }
@@ -121,7 +120,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /api/me", s.mutating(s.authed(s.handleDeleteMe)))
 	s.mux.HandleFunc("GET /api/watchlist", s.authed(s.handleWatchlist))
 	s.mux.HandleFunc("POST /api/watchlist", s.mutating(s.authed(s.handleAddWatch)))
-	s.mux.HandleFunc("PATCH /api/watchlist/{membershipId}", s.mutating(s.authed(s.handleUpdateNote)))
 	s.mux.HandleFunc("DELETE /api/watchlist/{membershipId}", s.mutating(s.authed(s.handleRemoveWatch)))
 	s.mux.HandleFunc("GET /api/search", s.authed(s.handleSearch))
 	s.mux.HandleFunc("POST /api/refresh", s.mutating(s.authed(s.handleRefresh)))
