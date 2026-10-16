@@ -94,14 +94,29 @@ func TestActiveUsers_GracePeriodAfterDisconnect(t *testing.T) {
 }
 
 func TestActiveUsers_DroppedConnectionStartsGrace(t *testing.T) {
-	h, now := newTestHub(0) // unbuffered: any send drops
+	h, now := newTestHub(1) // one slot: the second send overflows and drops
 	h.Subscribe(1)
 	h.SendTo([]int64{1}, Event{Type: "x"})
+	h.SendTo([]int64{1}, Event{Type: "y"})
 	if got := h.ActiveUsers(time.Minute); !slices.Equal(got, []int64{1}) {
 		t.Errorf("right after drop = %v", got)
 	}
 	*now = now.Add(2 * time.Minute)
 	if got := h.ActiveUsers(time.Minute); len(got) != 0 {
 		t.Errorf("after grace = %v", got)
+	}
+}
+
+func TestNew_ClampsBufferToOne(t *testing.T) {
+	h := New(0)
+	c, _ := h.Subscribe(1)
+	h.SendTo([]int64{1}, Event{Type: "x"})
+	select {
+	case <-c.Done():
+		t.Fatal("connection dropped; buffer 0 should clamp to 1")
+	default:
+	}
+	if ev := receive(t, c); ev.Type != "x" {
+		t.Errorf("got %+v", ev)
 	}
 }

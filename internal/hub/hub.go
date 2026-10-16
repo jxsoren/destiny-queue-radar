@@ -35,7 +35,12 @@ type Hub struct {
 }
 
 // New returns a hub whose connections buffer up to buffer events before being dropped.
+// The minimum buffer is 1; smaller values are clamped, since an unbuffered channel would
+// drop every send.
 func New(buffer int) *Hub {
+	if buffer < 1 {
+		buffer = 1
+	}
 	return &Hub{
 		buffer:   buffer,
 		conns:    map[int64]map[*Conn]struct{}{},
