@@ -272,7 +272,10 @@ type testEnv struct {
 	now     time.Time
 }
 
-func newTestEnv(t *testing.T) *testEnv {
+func newTestEnv(t *testing.T) *testEnv { return newTestEnvWith(t, nil) }
+
+// newTestEnvWith is newTestEnv with a hook that adjusts the server's Deps before New.
+func newTestEnvWith(t *testing.T, adjust func(*Deps)) *testEnv {
 	t.Helper()
 	e := &testEnv{
 		store:   newFakeStore(),
@@ -283,11 +286,15 @@ func newTestEnv(t *testing.T) *testEnv {
 		hub:     hub.New(8),
 		now:     time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC),
 	}
-	e.s = New(Deps{
+	d := Deps{
 		Store: e.store, Engine: e.engine, Hub: e.hub, Bungie: e.bungie, Tokens: e.tokens, Matches: e.matches,
 		OAuthClientID: "55818",
 		Log:           slog.New(slog.NewTextHandler(io.Discard, nil)),
-	})
+	}
+	if adjust != nil {
+		adjust(&d)
+	}
+	e.s = New(d)
 	e.s.now = func() time.Time { return e.now }
 	return e
 }

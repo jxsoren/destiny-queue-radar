@@ -4,6 +4,7 @@ package web
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -77,6 +78,9 @@ type Deps struct {
 	Bungie  Bungie
 	Tokens  Tokens
 	Matches Matches
+	// Static is the built dashboard (internal/webui). When set, GET / and unknown GET paths
+	// outside /api and /auth serve it with history fallback; when nil, / is a placeholder.
+	Static fs.FS
 	// Done, when closed, ends open live streams (server shutdown). Nil means never.
 	Done          <-chan struct{}
 	OAuthClientID string
@@ -112,7 +116,11 @@ func New(d Deps) *Server {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
 
 func (s *Server) routes() {
-	s.mux.HandleFunc("GET /{$}", s.handleIndex)
+	if s.d.Static != nil {
+		s.mux.HandleFunc("GET /", s.handleStatic)
+	} else {
+		s.mux.HandleFunc("GET /{$}", s.handleIndex)
+	}
 	s.mux.HandleFunc("GET /auth/login", s.handleLogin)
 	s.mux.HandleFunc("GET /auth/callback", s.handleCallback)
 	s.mux.HandleFunc("POST /auth/logout", s.mutating(s.handleLogout))
