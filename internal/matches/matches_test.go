@@ -211,13 +211,13 @@ func TestRecent_CancelledContextReturnsError(t *testing.T) {
 }
 
 func TestRecent_ClampsLimit(t *testing.T) {
-	for _, limit := range []int{0, -1, 26, 1000} {
+	for limit, want := range map[int]int{0: 10, -1: 10, 26: 25, 1000: 25} {
 		f := newFake()
 		if _, err := New(f, f, f, lookup{}).Recent(context.Background(), "", 3, "me", limit); err != nil {
 			t.Fatal(err)
 		}
-		if f.gotCount != 10 {
-			t.Errorf("limit %d requested %d activities, want 10", limit, f.gotCount)
+		if f.gotCount != want {
+			t.Errorf("limit %d requested %d activities, want %d", limit, f.gotCount, want)
 		}
 	}
 	f := newFake()
@@ -264,4 +264,17 @@ func TestConcurrentUse(t *testing.T) {
 		go func() { defer wg.Done(); s.Recent(context.Background(), "", 3, "me", 10) }()
 	}
 	wg.Wait()
+}
+
+func TestMatch_ZeroPlaylistHashIsCached(t *testing.T) {
+	f := newFake()
+	r := report("m8")
+	r.ActivityDetails.DirectorActivityHash = 0
+	f.reports["m8"] = r
+	s := New(f, f, f, lookup{})
+	s.Match(context.Background(), "m8")
+	s.Match(context.Background(), "m8")
+	if f.pgcrCalls["m8"] != 1 {
+		t.Errorf("fetched %d times, want 1 (cached)", f.pgcrCalls["m8"])
+	}
 }

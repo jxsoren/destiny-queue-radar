@@ -42,7 +42,7 @@ type Participant struct {
 	Team           int    `json:"team"` // -1 when the activity has no teams
 }
 
-// Match is one activity instance. Matches are shared from a cache; treat them as read-only.
+// Match is one activity instance. Match values handed out by the Service are copies; callers may modify them freely.
 type Match struct {
 	InstanceID string        `json:"instanceId"`
 	Period     time.Time     `json:"period"`
@@ -75,10 +75,13 @@ func New(p Profiles, h History, r Reports, l Lookup) *Service {
 
 // Recent returns up to limit of the player's most recent PvP matches across all characters,
 // newest first. token may be empty when the player's history is public. Matches whose report
-// cannot be fetched are left out.
+// cannot be fetched are left out. It returns an error when every report fails to load or
+// ctx is cancelled.
 func (s *Service) Recent(ctx context.Context, token string, membershipType int64, membershipID string, limit int) ([]Match, error) {
-	if limit < 1 || limit > maxRecent {
+	if limit < 1 {
 		limit = defaultRecent
+	} else if limit > maxRecent {
+		limit = maxRecent
 	}
 	p, err := s.profiles.GetProfile(ctx, membershipType, membershipID)
 	if err != nil {
@@ -149,7 +152,8 @@ func (s *Service) Recent(ctx context.Context, token string, membershipType int64
 	return out, nil
 }
 
-// Match returns one activity instance's participants. Reports never change, so they are cached.
+// Match returns one activity instance's participants as a copy the caller may modify. Reports
+// never change, so they are cached (unless a manifest lookup failed).
 func (s *Service) Match(ctx context.Context, instanceID string) (Match, error) {
 	if m, ok := s.cached(instanceID); ok {
 		return m, nil
@@ -158,22 +162,28 @@ func (s *Service) Match(ctx context.Context, instanceID string) (Match, error) {
 	if err != nil {
 		return Match{}, err
 	}
-	m := s.build(instanceID, r)
-	// A name that does not resolve may just be missing from a stale manifest; don't freeze it.
-	if m.Activity != "" && m.Playlist != "" {
+	m, resolved := s.build(instanceID, r)
+	// A hash that fails to resolve may just be missing from a stale manifest; don't freeze it.
+	if resolved {
 		s.remember(instanceID, m)
 	}
 	m.Players = slices.Clone(m.Players)
 	return m, nil
 }
 
-func (s *Service) build(instanceID string, r *bungie.PGCR) Match {
+// build also reports whether every non-zero hash resolved in the manifest.
+func (s *Service) build(instanceID string, r *bungie.PGCR) (Match, bool) {
 	m := Match{InstanceID: instanceID, Period: r.Period}
-	if a, ok := s.lookup.Activity(r.ActivityDetails.ReferenceID); ok {
+	resolved := true
+	if h := r.ActivityDetails.ReferenceID; h != 0 {
+		a, ok := s.lookup.Activity(h)
 		m.Activity = a.Name
+		resolved = resolved && ok
 	}
-	if a, ok := s.lookup.Activity(r.ActivityDetails.DirectorActivityHash); ok {
+	if h := r.ActivityDetails.DirectorActivityHash; h != 0 {
+		a, ok := s.lookup.Activity(h)
 		m.Playlist = a.Name
+		resolved = resolved && ok
 	}
 	seen := map[string]bool{}
 	for _, e := range r.Entries {
@@ -201,7 +211,7 @@ func (s *Service) build(instanceID string, r *bungie.PGCR) Match {
 		}
 		return a.MembershipID < b.MembershipID
 	})
-	return m
+	return m, resolved
 }
 
 func (s *Service) cached(id string) (Match, bool) {
