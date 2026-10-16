@@ -21,3 +21,9 @@ certs/
 # Frontend dependencies and build output (embedded build lands in internal/webui/dist/app)
 web/node_modules/
 internal/webui/dist/app/
+
+# Local binaries and frontend test output
+/bin/
+/web/test-results/
+/web/playwright-report/
+.taste-skill/
