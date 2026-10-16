@@ -19,6 +19,17 @@ import (
 // refreshSkew refreshes access tokens a little before they expire.
 const refreshSkew = 60 * time.Second
 
+const (
+	kindAccess  = "access"
+	kindRefresh = "refresh"
+)
+
+// tokenAAD binds an encrypted token to its owner and type, so a stored value cannot be moved to
+// another user's row or swapped between the access and refresh columns.
+func tokenAAD(userID int64, kind string) []byte {
+	return []byte(fmt.Sprintf("dqr/oauth-token/v1|%d|%s", userID, kind))
+}
+
 // ErrReauthRequired means the user must sign in with Bungie again.
 var ErrReauthRequired = errors.New("auth: sign in again")
 
@@ -71,11 +82,11 @@ func (tm *TokenManager) Exchange(ctx context.Context, code string) (TokenRespons
 
 // Persist encrypts and stores a token response for the user.
 func (tm *TokenManager) Persist(ctx context.Context, userID int64, r TokenResponse) error {
-	access, err := tm.box.Encrypt([]byte(r.AccessToken))
+	access, err := tm.box.Encrypt([]byte(r.AccessToken), tokenAAD(userID, kindAccess))
 	if err != nil {
 		return err
 	}
-	refresh, err := tm.box.Encrypt([]byte(r.RefreshToken))
+	refresh, err := tm.box.Encrypt([]byte(r.RefreshToken), tokenAAD(userID, kindRefresh))
 	if err != nil {
 		return err
 	}
@@ -105,7 +116,7 @@ func (tm *TokenManager) AccessToken(ctx context.Context, userID int64) (string, 
 	}
 	now := tm.now()
 	if now.Add(refreshSkew).Before(t.AccessExpiresAt) {
-		access, err := tm.box.Decrypt(t.AccessToken)
+		access, err := tm.box.Decrypt(t.AccessToken, tokenAAD(userID, kindAccess))
 		if err != nil {
 			return "", fmt.Errorf("auth: decrypt access token: %w", err)
 		}
@@ -114,7 +125,7 @@ func (tm *TokenManager) AccessToken(ctx context.Context, userID int64) (string, 
 	if !now.Before(t.RefreshExpiresAt) {
 		return "", ErrReauthRequired
 	}
-	refresh, err := tm.box.Decrypt(t.RefreshToken)
+	refresh, err := tm.box.Decrypt(t.RefreshToken, tokenAAD(userID, kindRefresh))
 	if err != nil {
 		return "", fmt.Errorf("auth: decrypt refresh token: %w", err)
 	}

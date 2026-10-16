@@ -175,3 +175,32 @@ func TestAccessToken_ConcurrentCallersRefreshOnce(t *testing.T) {
 		t.Errorf("token endpoint calls = %d, want 2 (1 exchange + 1 refresh)", got)
 	}
 }
+
+func TestTokens_BoundToUserAndKind(t *testing.T) {
+	ts := &tokenServer{}
+	tm, mem, _ := newManager(t, ts)
+	ctx := context.Background()
+	resp, err := tm.Exchange(ctx, "code")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tm.Persist(ctx, 1, resp); err != nil {
+		t.Fatal(err)
+	}
+
+	// A row copied to another user must not decrypt as that user's token.
+	row := mem.rows[1]
+	row.UserID = 2
+	mem.rows[2] = row
+	if got, err := tm.AccessToken(ctx, 2); err == nil {
+		t.Errorf("user 2 got a token from user 1's row: %q", got)
+	}
+
+	// Swapping the access and refresh ciphertexts must not decrypt either.
+	swapped := mem.rows[1]
+	swapped.AccessToken, swapped.RefreshToken = swapped.RefreshToken, swapped.AccessToken
+	mem.rows[1] = swapped
+	if got, err := tm.AccessToken(ctx, 1); err == nil {
+		t.Errorf("swapped access/refresh decrypted: %q", got)
+	}
+}
