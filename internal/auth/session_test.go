@@ -65,3 +65,9 @@ func TestAuthorizeURL(t *testing.T) {
 		t.Errorf("url = %s", u)
 	}
 }
+
+func TestSessionCookieName_UsesHostPrefix(t *testing.T) {
+	if SessionCookie != "__Host-dqr_session" {
+		t.Errorf("SessionCookie = %q", SessionCookie)
+	}
+}

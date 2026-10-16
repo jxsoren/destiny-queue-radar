@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	SessionCookie = "dqr_session"
+	SessionCookie = "__Host-dqr_session"
 	StateCookie   = "dqr_oauth_state"
 	SessionTTL    = 30 * 24 * time.Hour
 
