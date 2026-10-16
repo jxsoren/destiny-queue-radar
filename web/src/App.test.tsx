@@ -29,7 +29,8 @@ test('signed in: the board', async () => {
 
 test('signed out: the landing page with Bungie sign-in', async () => {
   render(<App client={client(() => Promise.reject(new ApiError(401, 'sign in required', null, false)))} stream={fakeStreamFactory} />);
-  expect(await screen.findByRole('link', { name: /sign in with bungie/i })).toHaveAttribute('href', '/auth/login');
+  const signIn = await screen.findAllByRole('link', { name: /sign in with bungie/i });
+  for (const link of signIn) expect(link).toHaveAttribute('href', '/auth/login');
   expect(FakeStream.all).toHaveLength(0);
 });
 
@@ -45,7 +46,7 @@ test('a logout event on the stream routes to the landing page', async () => {
   render(<App client={client(() => Promise.resolve(me))} stream={fakeStreamFactory} />);
   await screen.findByRole('button', { name: 'SIGN OUT' });
   act(() => FakeStream.latest().emit('logout', {}));
-  expect(await screen.findByRole('link', { name: /sign in with bungie/i })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { level: 1, name: /queue while the cheater plays/i })).toBeInTheDocument();
 });
 
 test('sign out routes to the landing page', async () => {
@@ -54,5 +55,5 @@ test('sign out routes to the landing page', async () => {
   render(<App client={c} stream={fakeStreamFactory} />);
   await user.click(await screen.findByRole('button', { name: 'SIGN OUT' }));
   expect(c.logout).toHaveBeenCalledOnce();
-  expect(await screen.findByRole('link', { name: /sign in with bungie/i })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { level: 1, name: /queue while the cheater plays/i })).toBeInTheDocument();
 });
