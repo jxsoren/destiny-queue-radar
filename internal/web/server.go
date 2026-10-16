@@ -106,6 +106,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.Serve
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /{$}", s.handleIndex)
+	s.mux.HandleFunc("GET /auth/login", s.handleLogin)
+	s.mux.HandleFunc("GET /auth/callback", s.handleCallback)
 	s.mux.HandleFunc("POST /auth/logout", s.mutating(s.handleLogout))
 	s.mux.HandleFunc("GET /api/me", s.authed(s.handleMe))
 	s.mux.HandleFunc("DELETE /api/me", s.mutating(s.authed(s.handleDeleteMe)))
