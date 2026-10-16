@@ -49,6 +49,15 @@ func (s *Store) DeleteUser(ctx context.Context, userID int64) error {
 		return fmt.Errorf("store: begin: %w", err)
 	}
 	defer tx.Rollback(ctx)
+	// Lock the user row first, then players: the same order AddWatch uses, so the two can't deadlock.
+	var id int64
+	err = tx.QueryRow(ctx, `SELECT id FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("store: lock user: %w", err)
+	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE players SET updated_at = now()
 		WHERE membership_id IN (SELECT membership_id FROM watch_entries WHERE user_id = $1)`, userID); err != nil {

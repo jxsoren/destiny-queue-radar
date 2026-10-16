@@ -52,13 +52,34 @@ func TestDeleteUser_RemovesWatchesAndRestartsCleanupClock(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	now := time.Now()
+	must(t, s.CreateSession(ctx, []byte("h"), u.ID, now.Add(time.Hour)))
+	must(t, s.SaveTokens(ctx, Tokens{UserID: u.ID, AccessToken: []byte("a"), RefreshToken: []byte("r"), AccessExpiresAt: now, RefreshExpiresAt: now}))
+
 	must(t, s.DeleteUser(ctx, u.ID))
 	if _, err := s.User(ctx, u.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("user still present: %v", err)
+	}
+	var watches int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM watch_entries WHERE user_id = $1`, u.ID).Scan(&watches); err != nil {
+		t.Fatal(err)
+	}
+	if watches != 0 {
+		t.Errorf("%d watch entries remain", watches)
+	}
+	if _, err := s.SessionUser(ctx, []byte("h"), now); !errors.Is(err, ErrNotFound) {
+		t.Errorf("session survived: %v", err)
+	}
+	if _, err := s.Tokens(ctx, u.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("tokens survived: %v", err)
 	}
 	// The player is unwatched now, but its grace period restarted at deletion.
 	n, err := s.DeleteUnwatchedPlayers(ctx, time.Now().Add(-30*24*time.Hour))
 	if err != nil || n != 0 {
 		t.Errorf("cleanup removed %d players (err %v); grace period should restart at account deletion", n, err)
+	}
+	n, err = s.DeleteUnwatchedPlayers(ctx, time.Now().Add(time.Second))
+	if err != nil || n != 1 {
+		t.Errorf("cleanup removed %d players (err %v), want 1", n, err)
 	}
 }
