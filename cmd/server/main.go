@@ -28,6 +28,7 @@ import (
 	"github.com/jxsoren/destiny-queue-radar/internal/ratelimit"
 	"github.com/jxsoren/destiny-queue-radar/internal/store"
 	"github.com/jxsoren/destiny-queue-radar/internal/web"
+	"github.com/jxsoren/destiny-queue-radar/internal/webui"
 )
 
 const (
@@ -35,6 +36,12 @@ const (
 	unwatchedPlayerTTL      = 30 * 24 * time.Hour // spec §7.5
 	cleanupInterval         = time.Hour
 )
+
+// engineConfig is the poller configuration; e2e builds replace it with a faster one.
+var engineConfig = engine.DefaultConfig
+
+// e2eBuild is set by e2e.go in binaries built with -tags e2e.
+var e2eBuild = false
 
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -77,7 +84,7 @@ func run(log *slog.Logger) error {
 	}
 	tokens := auth.NewTokenManager(st, box, cfg.OAuthClientID, cfg.OAuthClientSecret, cfg.BungieBaseURL, nil)
 	h := hub.New(32)
-	eng := engine.New(engine.DefaultConfig(), st, client, classifier.New(man), h, log)
+	eng := engine.New(engineConfig(), st, client, classifier.New(man), h, log)
 	// Closed when Shutdown begins, so open SSE streams end while normal requests drain.
 	streamsDone := make(chan struct{})
 	handler := web.New(web.Deps{
@@ -87,11 +94,18 @@ func run(log *slog.Logger) error {
 		Bungie:        client,
 		Tokens:        tokens,
 		Matches:       matches.New(client, client, stats, man),
+		Static:        webui.FS(),
 		OAuthClientID: cfg.OAuthClientID,
 		Done:          streamsDone,
 		Log:           log,
 	})
 
+	if !webui.Built() {
+		log.Warn("serving the placeholder page; run `make web` and rebuild to embed the dashboard")
+	}
+	if e2eBuild {
+		log.Warn("E2E BUILD: test sign-in at /auth/e2e-login is enabled; never deploy this binary")
+	}
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           handler,

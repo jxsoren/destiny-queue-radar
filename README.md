@@ -2,11 +2,12 @@
 
 See when Destiny 2 players on your watchlist are in a PvP match, so you can time your queue.
 
-> **Status:** early development. The Bungie API client, probe tool and backend server (API, live stream, sign-in, poller) are in place; the frontend is not built yet.
+> **Status:** early development. The backend (API, live stream, sign-in, poller) and the dashboard are in place.
 
 ## Requirements
 
 - Go 1.25+
+- Node 22+ and npm (for the dashboard)
 - A Bungie.net API key ([register an application](https://www.bungie.net/en/Application))
 
 ## Getting started
@@ -32,7 +33,7 @@ go run ./cmd/probe -players "Name#1234"
    set -a; . ./.env; set +a
    go run ./cmd/server
    ```
-5. Open https://localhost:8443 and sign in.
+5. Open https://localhost:8443 and sign in (run `make build` first to embed the dashboard).
 
 ## Configuration
 
@@ -59,6 +60,21 @@ go vet ./...
 gofmt -l .
 ```
 
+### Dashboard (`web/`)
+
+```bash
+cd web
+npm ci
+npm run dev        # http://localhost:5173, proxies /api and /auth to https://localhost:8443
+npm run typecheck
+npm test
+npm run build      # writes internal/webui/dist/app, embedded by the next go build
+```
+
+Sign in through the Go server (https://localhost:8443), then open http://localhost:5173: the session cookie is host-only for `localhost`, so the dev server sends it too.
+
+`make build` builds the dashboard and then `bin/server` with it embedded. Without a dashboard build, the server serves a placeholder page.
+
 ## Project layout
 
 ```
@@ -78,6 +94,8 @@ internal/ratelimit/ Global Bungie request pacing
 internal/status/    Player status types
 internal/store/     Postgres storage and migrations
 internal/web/       HTTP handlers
+internal/webui/     Embedded dashboard build (placeholder when unbuilt)
+web/                React dashboard source
 ```
 
 ## Disclaimer
