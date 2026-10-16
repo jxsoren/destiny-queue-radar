@@ -20,6 +20,7 @@ type fakeBungie struct {
 	failPGCR  map[string]bool
 	pgcrCalls map[string]int
 	gotToken  string
+	gotCount  int
 }
 
 func (f *fakeBungie) GetProfile(_ context.Context, _ int64, _ string) (*bungie.Profile, error) {
@@ -35,6 +36,7 @@ func (f *fakeBungie) ActivityHistory(_ context.Context, token string, _ int64, _
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.gotToken = token
+	f.gotCount = count
 	if mode != bungie.ModeAllPvP {
 		return nil, errors.New("wrong mode")
 	}
@@ -188,4 +190,78 @@ func TestMatch_CacheEvictsOldest(t *testing.T) {
 	if f.pgcrCalls["m1"] != 1 || f.pgcrCalls["m2"] != 2 {
 		t.Errorf("calls = %v, want m1 cached and m2 refetched", f.pgcrCalls)
 	}
+}
+
+func TestRecent_AllReportsFailReturnsError(t *testing.T) {
+	f := newFake()
+	f.failPGCR["m1"], f.failPGCR["m2"], f.failPGCR["m3"] = true, true, true
+	got, err := New(f, f, f, lookup{}).Recent(context.Background(), "", 3, "me", 10)
+	if err == nil || got != nil {
+		t.Errorf("got %v, %v; want nil and an error", got, err)
+	}
+}
+
+func TestRecent_CancelledContextReturnsError(t *testing.T) {
+	f := newFake()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := New(f, f, f, lookup{}).Recent(ctx, "", 3, "me", 10); !errors.Is(err, context.Canceled) {
+		t.Errorf("err = %v, want context.Canceled", err)
+	}
+}
+
+func TestRecent_ClampsLimit(t *testing.T) {
+	for _, limit := range []int{0, -1, 26, 1000} {
+		f := newFake()
+		if _, err := New(f, f, f, lookup{}).Recent(context.Background(), "", 3, "me", limit); err != nil {
+			t.Fatal(err)
+		}
+		if f.gotCount != 10 {
+			t.Errorf("limit %d requested %d activities, want 10", limit, f.gotCount)
+		}
+	}
+	f := newFake()
+	New(f, f, f, lookup{}).Recent(context.Background(), "", 3, "me", 25)
+	if f.gotCount != 25 {
+		t.Errorf("limit 25 requested %d", f.gotCount)
+	}
+}
+
+func TestMatch_CallerCannotMutateCache(t *testing.T) {
+	f := newFake()
+	s := New(f, f, f, lookup{})
+	m, _ := s.Match(context.Background(), "m1")
+	m.Players[0].BungieName = "Mutated"
+	m2, _ := s.Match(context.Background(), "m1")
+	if m2.Players[0].BungieName != "Alpha#0001" {
+		t.Errorf("cache was mutated: %q", m2.Players[0].BungieName)
+	}
+}
+
+func TestMatch_UnresolvedNamesAreNotCached(t *testing.T) {
+	f := newFake()
+	r := report("m9")
+	r.ActivityDetails.ReferenceID = 999 // map not in the manifest yet
+	f.reports["m9"] = r
+	s := New(f, f, f, lookup{})
+	m, err := s.Match(context.Background(), "m9")
+	if err != nil || m.Activity != "" {
+		t.Fatalf("m = %+v, err = %v", m, err)
+	}
+	s.Match(context.Background(), "m9")
+	if f.pgcrCalls["m9"] != 2 {
+		t.Errorf("fetched %d times, want 2 (not cached)", f.pgcrCalls["m9"])
+	}
+}
+
+func TestConcurrentUse(t *testing.T) {
+	f := newFake()
+	s := New(f, f, f, lookup{})
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(2)
+		go func() { defer wg.Done(); s.Match(context.Background(), "m1") }()
+		go func() { defer wg.Done(); s.Recent(context.Background(), "", 3, "me", 10) }()
+	}
+	wg.Wait()
 }

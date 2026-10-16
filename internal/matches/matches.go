@@ -6,6 +6,7 @@ import (
 	"container/list"
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -50,6 +51,11 @@ type Match struct {
 	Players    []Participant `json:"players"`
 }
 
+const (
+	defaultRecent = 10
+	maxRecent     = 25
+)
+
 type Service struct {
 	profiles Profiles
 	history  History
@@ -71,6 +77,9 @@ func New(p Profiles, h History, r Reports, l Lookup) *Service {
 // newest first. token may be empty when the player's history is public. Matches whose report
 // cannot be fetched are left out.
 func (s *Service) Recent(ctx context.Context, token string, membershipType int64, membershipID string, limit int) ([]Match, error) {
+	if limit < 1 || limit > maxRecent {
+		limit = defaultRecent
+	}
 	p, err := s.profiles.GetProfile(ctx, membershipType, membershipID)
 	if err != nil {
 		return nil, fmt.Errorf("matches: load profile: %w", err)
@@ -106,23 +115,36 @@ func (s *Service) Recent(ctx context.Context, token string, membershipType int64
 	}
 
 	results := make([]*Match, len(instanceIDs))
+	errs := make([]error, len(instanceIDs))
 	var wg sync.WaitGroup
 	for i, id := range instanceIDs {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if m, err := s.Match(ctx, id); err == nil {
-				results[i] = &m
+			m, err := s.Match(ctx, id)
+			if err != nil {
+				errs[i] = err
+				return
 			}
+			results[i] = &m
 		}()
 	}
 	wg.Wait()
 
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	out := make([]Match, 0, len(results))
-	for _, m := range results {
+	var firstErr error
+	for i, m := range results {
 		if m != nil {
 			out = append(out, *m)
+		} else if firstErr == nil {
+			firstErr = errs[i]
 		}
+	}
+	if len(instanceIDs) > 0 && len(out) == 0 {
+		return nil, fmt.Errorf("matches: load reports: %w", firstErr)
 	}
 	return out, nil
 }
@@ -137,7 +159,11 @@ func (s *Service) Match(ctx context.Context, instanceID string) (Match, error) {
 		return Match{}, err
 	}
 	m := s.build(instanceID, r)
-	s.remember(instanceID, m)
+	// A name that does not resolve may just be missing from a stale manifest; don't freeze it.
+	if m.Activity != "" && m.Playlist != "" {
+		s.remember(instanceID, m)
+	}
+	m.Players = slices.Clone(m.Players)
 	return m, nil
 }
 
@@ -186,7 +212,9 @@ func (s *Service) cached(id string) (Match, bool) {
 		return Match{}, false
 	}
 	s.order.MoveToFront(el)
-	return el.Value.(Match), true
+	m := el.Value.(Match)
+	m.Players = slices.Clone(m.Players)
+	return m, true
 }
 
 func (s *Service) remember(id string, m Match) {
