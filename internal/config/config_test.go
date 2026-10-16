@@ -1,10 +1,18 @@
 package config
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
+)
+
+const (
+	testAPIKey       = "APIKEY-test-9c2d"
+	testClientSecret = "client-secret-x91"
+	testDatabaseURL  = "postgres:///dqr?host=/tmp"
 )
 
 func envFrom(m map[string]string) func(string) string {
@@ -51,10 +59,10 @@ func TestFromEnv_WhitespaceOnlyAPIKeyIsMissing(t *testing.T) {
 
 func serverEnv() map[string]string {
 	return map[string]string{
-		"BUNGIE_API_KEY":             "k",
-		"DATABASE_URL":               "postgres:///dqr?host=/tmp",
+		"BUNGIE_API_KEY":             testAPIKey,
+		"DATABASE_URL":               testDatabaseURL,
 		"BUNGIE_OAUTH_CLIENT_ID":     "55818",
-		"BUNGIE_OAUTH_CLIENT_SECRET": "secret",
+		"BUNGIE_OAUTH_CLIENT_SECRET": testClientSecret,
 		"BUNGIE_OAUTH_REDIRECT_URL":  "https://localhost:8443/auth/callback",
 		"TOKEN_ENCRYPTION_KEY":       base64.StdEncoding.EncodeToString(make([]byte, 32)),
 	}
@@ -65,7 +73,7 @@ func TestServerFromEnv_Defaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.BungieAPIKey != "k" || s.BungieBaseURL != "https://www.bungie.net" {
+	if s.BungieAPIKey != testAPIKey || s.BungieBaseURL != "https://www.bungie.net" {
 		t.Errorf("embedded config: api key=%q base url=%q", s.BungieAPIKey, s.BungieBaseURL)
 	}
 	if s.Addr != ":8443" || s.StatsBaseURL != "https://stats.bungie.net" {
@@ -74,7 +82,7 @@ func TestServerFromEnv_Defaults(t *testing.T) {
 	if len(s.TokenKey) != 32 {
 		t.Errorf("token key length = %d, want 32", len(s.TokenKey))
 	}
-	if s.OAuthClientID != "55818" || s.OAuthClientSecret != "secret" {
+	if s.OAuthClientID != "55818" || s.OAuthClientSecret != testClientSecret {
 		t.Errorf("oauth client id=%q secret=%q", s.OAuthClientID, s.OAuthClientSecret)
 	}
 }
@@ -130,15 +138,33 @@ func TestServerFromEnv_TrimsWhitespace(t *testing.T) {
 	}
 }
 
-func TestServerFromEnv_StringRedactsSecrets(t *testing.T) {
+func TestServerFromEnv_RedactsSecretsInAllFormats(t *testing.T) {
 	s, err := ServerFromEnv(envFrom(serverEnv()))
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := fmt.Sprintf("%v", s)
-	for _, secret := range []string{"secret", "postgres:///dqr"} {
-		if strings.Contains(out, secret) {
-			t.Errorf("formatted server %q leaks %q", out, secret)
+	secrets := []string{testAPIKey, testClientSecret, testDatabaseURL}
+
+	formatted := map[string]string{
+		"%v":        fmt.Sprintf("%v", s),
+		"%#v":       fmt.Sprintf("%#v", s),
+		"%+v":       fmt.Sprintf("%+v", s),
+		"Config %v": fmt.Sprintf("%v", s.Config),
+	}
+	for verb, out := range formatted {
+		for _, secret := range secrets {
+			if strings.Contains(out, secret) {
+				t.Errorf("%s output %q leaks %q", verb, out, secret)
+			}
+		}
+	}
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	logger.Info("loaded", slog.Any("cfg", s), slog.Any("bungie", s.Config))
+	for _, secret := range secrets {
+		if strings.Contains(buf.String(), secret) {
+			t.Errorf("slog JSON output %q leaks %q", buf.String(), secret)
 		}
 	}
 }

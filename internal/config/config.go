@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -14,6 +15,17 @@ type Config struct {
 	BungieAPIKey  string
 	BungieBaseURL string
 }
+
+// String summarizes the Bungie settings with the API key redacted.
+func (c Config) String() string {
+	return fmt.Sprintf("Config{BungieAPIKey:<redacted> BungieBaseURL:%s}", c.BungieBaseURL)
+}
+
+// GoString matches String so %#v cannot leak the API key.
+func (c Config) GoString() string { return c.String() }
+
+// LogValue keeps slog output redacted.
+func (c Config) LogValue() slog.Value { return slog.StringValue(c.String()) }
 
 // FromEnv builds a Config using getenv (normally os.Getenv).
 func FromEnv(getenv func(string) string) (Config, error) {
@@ -57,6 +69,12 @@ func (s Server) String() string {
 	return fmt.Sprintf("Server{Addr:%s DatabaseURL:<set> OAuthClientID:%s OAuthClientSecret:<redacted> TokenKey:<redacted> TLS:%t}",
 		s.Addr, s.OAuthClientID, tls)
 }
+
+// GoString matches String so %#v cannot leak secrets.
+func (s Server) GoString() string { return s.String() }
+
+// LogValue keeps slog output redacted.
+func (s Server) LogValue() slog.Value { return slog.StringValue(s.String()) }
 
 // ServerFromEnv builds the server configuration using getenv (normally os.Getenv).
 func ServerFromEnv(getenv func(string) string) (Server, error) {
