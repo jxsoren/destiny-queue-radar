@@ -46,3 +46,33 @@ func TestHealth(t *testing.T) {
 		t.Errorf("success should clear down, got %s", got)
 	}
 }
+
+func TestHealth_ConsecutiveFailuresGoDown(t *testing.T) {
+	t0 := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	h := health{window: time.Minute}
+	for i := 0; i < downAfterFailures; i++ {
+		h.record(t0, true, false)
+	}
+	if got := h.state(t0); got != APIDown {
+		t.Errorf("%d consecutive failures = %s, want down", downAfterFailures, got)
+	}
+	h.record(t0, false, false)
+	if got := h.state(t0); got == APIDown {
+		t.Errorf("success should clear down, got %s", got)
+	}
+}
+
+func TestHealth_SuccessResetsConsecutiveCount(t *testing.T) {
+	t0 := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	h := health{window: time.Minute}
+	for i := 0; i < downAfterFailures-1; i++ {
+		h.record(t0, true, false)
+	}
+	h.record(t0, false, false)
+	for i := 0; i < downAfterFailures-1; i++ {
+		h.record(t0, true, false)
+	}
+	if got := h.state(t0); got == APIDown {
+		t.Errorf("interrupted failures = %s, want not down", got)
+	}
+}

@@ -4,6 +4,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -36,6 +37,12 @@ type Hub interface {
 	Broadcast(ev hub.Event)
 }
 
+var (
+	_ Store    = (*store.Store)(nil)
+	_ Profiles = (*bungie.Client)(nil)
+	_ Hub      = (*hub.Hub)(nil)
+)
+
 const (
 	EventPlayerUpdate = "player_update"
 	EventAPIStatus    = "api_status"
@@ -53,6 +60,8 @@ type APIStatusUpdate struct {
 	Bungie APIState `json:"bungie"`
 }
 
+// Config tunes the engine. New clamps unusable values: Workers and Tick to at least 1 (Tick
+// defaults to one second when <= 0), and Interval, DownProbe and RefreshCooldown to non-negative.
 type Config struct {
 	Interval        time.Duration // routine poll interval per player
 	Grace           time.Duration // how long a disconnected user's players stay active
@@ -102,6 +111,13 @@ type Engine struct {
 }
 
 func New(cfg Config, st Store, p Profiles, c status.Classifier, h Hub, log *slog.Logger) *Engine {
+	cfg.Workers = max(cfg.Workers, 1)
+	if cfg.Tick <= 0 {
+		cfg.Tick = time.Second
+	}
+	cfg.Interval = max(cfg.Interval, 0)
+	cfg.DownProbe = max(cfg.DownProbe, 0)
+	cfg.RefreshCooldown = max(cfg.RefreshCooldown, 0)
 	return &Engine{
 		cfg:         cfg,
 		store:       st,
@@ -162,8 +178,9 @@ func (e *Engine) Run(ctx context.Context) error {
 func (e *Engine) RequestRefresh(ctx context.Context, userID int64) error {
 	e.mu.Lock()
 	now := e.now()
-	if last, ok := e.lastRefresh[userID]; ok {
-		if wait := e.cfg.RefreshCooldown - now.Sub(last); wait > 0 {
+	prevRefresh, hadRefresh := e.lastRefresh[userID]
+	if hadRefresh {
+		if wait := e.cfg.RefreshCooldown - now.Sub(prevRefresh); wait > 0 {
 			e.mu.Unlock()
 			return &CooldownError{RetryAfter: wait}
 		}
@@ -178,13 +195,21 @@ func (e *Engine) RequestRefresh(ctx context.Context, userID int64) error {
 
 	players, err := e.store.WatchedBy(ctx, []int64{userID})
 	if err != nil {
+		// Don't let a failed refresh consume the user's cooldown.
+		e.mu.Lock()
+		if hadRefresh {
+			e.lastRefresh[userID] = prevRefresh
+		} else {
+			delete(e.lastRefresh, userID)
+		}
+		e.mu.Unlock()
 		return fmt.Errorf("engine: load watchlist: %w", err)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, p := range players {
 		en := e.entryLocked(p)
-		if now.Sub(en.lastPolled) < e.cfg.RefreshSkip {
+		if en.inFlight || now.Sub(en.lastPolled) < e.cfg.RefreshSkip {
 			continue
 		}
 		en.manualAt = now
@@ -219,7 +244,8 @@ func (e *Engine) refreshActiveSet(ctx context.Context) error {
 		e.entryLocked(p)
 	}
 	for id, en := range e.entries {
-		if !keep[id] && !en.inFlight {
+		// A pending manual refresh keeps its entry even if no watcher is online.
+		if !keep[id] && !en.inFlight && en.manualAt.IsZero() {
 			delete(e.entries, id)
 		}
 	}
@@ -229,16 +255,16 @@ func (e *Engine) refreshActiveSet(ctx context.Context) error {
 func (e *Engine) dispatch(jobs chan<- string) {
 	e.mu.Lock()
 	now := e.now()
-	max := cap(jobs) - len(jobs)
+	limit := cap(jobs) - len(jobs)
 	if e.apiState == APIDown {
 		if now.Sub(e.lastProbe) < e.cfg.DownProbe {
-			max = 0
+			limit = 0
 		} else {
-			max = min(max, 1)
+			limit = min(limit, 1)
 			e.lastProbe = now
 		}
 	}
-	ids := pickDue(e.entries, now, e.cfg.Interval, max)
+	ids := pickDue(e.entries, now, e.cfg.Interval, limit)
 	for _, id := range ids {
 		e.entries[id].inFlight = true
 		e.entries[id].manualAt = time.Time{}
@@ -285,7 +311,7 @@ func (e *Engine) poll(ctx context.Context, id string) {
 		next = status.Status{State: status.NotFound}
 	default:
 		e.log.Warn("poll failed", "player", id, "err", err, "throttled", bungie.IsThrottled(err))
-		if err := e.store.SavePollFailure(ctx, id, now); err != nil && ctx.Err() == nil {
+		if err := e.store.SavePollFailure(ctx, id, now); err != nil && ctx.Err() == nil && !errors.Is(err, store.ErrNotFound) {
 			e.log.Error("save poll failure", "player", id, "err", err)
 		}
 		return
@@ -293,7 +319,8 @@ func (e *Engine) poll(ctx context.Context, id string) {
 
 	emblem, background := activeEmblem(profile)
 	if err := e.store.SavePollSuccess(ctx, id, next, emblem, background, now); err != nil {
-		if ctx.Err() == nil {
+		// ErrNotFound: the player was deleted mid-poll; nothing to save or publish.
+		if ctx.Err() == nil && !errors.Is(err, store.ErrNotFound) {
 			e.log.Error("save poll", "player", id, "err", err)
 		}
 		return
@@ -308,6 +335,8 @@ func (e *Engine) finish(id string) {
 	defer e.mu.Unlock()
 	if en, ok := e.entries[id]; ok {
 		en.inFlight = false
+		// lastPolled is when the poll completed, not started. This is deliberate: under load the
+		// interval stretches slightly. A failed poll also waits a full Interval before retrying.
 		en.lastPolled = e.now()
 	}
 }
@@ -327,17 +356,27 @@ func (e *Engine) publish(ctx context.Context, id string, st status.Status, at ti
 }
 
 func (e *Engine) recordHealth(at time.Time, err error) {
+	// Throttling means we are rate-limited, not that Bungie is unhealthy; not-found is a
+	// successful answer about a missing player.
+	if bungie.IsThrottled(err) {
+		return
+	}
 	failed := err != nil && !bungie.IsNotFound(err)
+	// Hold the lock across the Broadcast so concurrent workers cannot deliver state changes out
+	// of order and leave clients on a stale state. hub.Broadcast never blocks or calls back.
 	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.health.record(at, failed, bungie.IsSystemDisabled(err))
 	state := e.health.state(at)
-	changed := state != e.apiState
-	e.apiState = state
-	e.mu.Unlock()
-	if changed {
-		e.log.Info("bungie api state changed", "state", state)
-		e.hub.Broadcast(hub.Event{Type: EventAPIStatus, Data: APIStatusUpdate{Bungie: state}})
+	if state == e.apiState {
+		return
 	}
+	e.apiState = state
+	if state == APIDown {
+		e.lastProbe = at // the first probe waits a full DownProbe
+	}
+	e.log.Info("bungie api state changed", "state", state)
+	e.hub.Broadcast(hub.Event{Type: EventAPIStatus, Data: APIStatusUpdate{Bungie: state}})
 }
 
 // activeEmblem returns the emblem of the character currently in use, falling back to the

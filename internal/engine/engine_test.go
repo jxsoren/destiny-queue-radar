@@ -24,6 +24,7 @@ type fakeStore struct {
 	watchers map[string][]int64
 	saves    map[string]int
 	failures map[string]int
+	err      error // returned by WatchedBy when set
 }
 
 func newFakeStore() *fakeStore {
@@ -40,6 +41,9 @@ func (f *fakeStore) watch(userID int64, p store.Player) {
 func (f *fakeStore) WatchedBy(_ context.Context, userIDs []int64) ([]store.Player, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.err != nil {
+		return nil, f.err
+	}
 	want := map[int64]bool{}
 	for _, id := range userIDs {
 		want[id] = true
@@ -404,5 +408,214 @@ func TestActiveEmblem(t *testing.T) {
 	}
 	if e, bg := activeEmblem(nil); e != "" || bg != "" {
 		t.Error("nil profile should give empty paths")
+	}
+}
+
+// --- hardening tests ---
+
+func TestRequestRefresh_PollsAlreadyPolledPlayer(t *testing.T) {
+	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
+	st.watch(1, player("p1"))
+	cfg := testConfig()
+	cfg.RefreshSkip, cfg.RefreshCooldown = 0, 0
+	e := New(cfg, st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+	run(t, e)
+
+	eventually(t, "first poll", func() bool { return pr.callCount("p1") == 1 })
+	eventually(t, "manual poll", func() bool {
+		_ = e.RequestRefresh(context.Background(), 1)
+		return pr.callCount("p1") >= 2
+	})
+}
+
+func TestRequestRefresh_PollsForInactiveUser(t *testing.T) {
+	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{} // nobody active
+	st.watch(1, player("p1"))
+	e := New(testConfig(), st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+	run(t, e)
+
+	if err := e.RequestRefresh(context.Background(), 1); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "manual poll of inactive user's player", func() bool { return pr.callCount("p1") >= 1 })
+}
+
+func TestRequestRefresh_StoreErrorDoesNotConsumeCooldown(t *testing.T) {
+	st := newFakeStore()
+	st.watch(1, player("p1"))
+	e := New(testConfig(), st, newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	e.now = func() time.Time { return now }
+
+	st.mu.Lock()
+	st.err = errors.New("db down")
+	st.mu.Unlock()
+	if err := e.RequestRefresh(context.Background(), 1); err == nil {
+		t.Fatal("want error")
+	}
+	st.mu.Lock()
+	st.err = nil
+	st.mu.Unlock()
+	if err := e.RequestRefresh(context.Background(), 1); err != nil {
+		t.Errorf("cooldown consumed by failed refresh: %v", err)
+	}
+}
+
+func TestRequestRefresh_SkipsInFlight(t *testing.T) {
+	st := newFakeStore()
+	st.watch(1, player("p1"))
+	e := New(testConfig(), st, newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	e.entries["p1"] = &entry{player: player("p1"), inFlight: true}
+	if err := e.RequestRefresh(context.Background(), 1); err != nil {
+		t.Fatal(err)
+	}
+	if !e.entries["p1"].manualAt.IsZero() {
+		t.Error("in-flight player must not be queued again")
+	}
+}
+
+func TestRecordHealth_ConsecutiveFailuresGoDownAndDelayProbe(t *testing.T) {
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	for i := 0; i < downAfterFailures; i++ {
+		e.recordHealth(now, &bungie.TransportError{Path: "/x", Err: errors.New("reset")})
+	}
+	if e.APIState() != APIDown {
+		t.Fatalf("state = %s, want down", e.APIState())
+	}
+	if !e.lastProbe.Equal(now) {
+		t.Errorf("lastProbe = %v, want %v", e.lastProbe, now)
+	}
+}
+
+func TestRecordHealth_IgnoresThrottlingAndNotFound(t *testing.T) {
+	h := &fakeHub{}
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), always(status.Status{}), h, quietLog())
+	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	for i := 0; i < 10; i++ {
+		e.recordHealth(now, &bungie.APIError{Code: 36, ThrottleSeconds: 5})
+		e.recordHealth(now, &bungie.APIError{Code: bungie.CodeAccountNotFound})
+	}
+	if e.APIState() != APIOK || len(h.broadcastEvents()) != 0 {
+		t.Errorf("state = %s, broadcasts = %d", e.APIState(), len(h.broadcastEvents()))
+	}
+}
+
+func TestEngine_RecoversFromDown(t *testing.T) {
+	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
+	st.watch(1, player("a"))
+	st.watch(1, player("b"))
+	cfg := testConfig()
+	cfg.DownProbe = 10 * time.Millisecond
+	e := New(cfg, st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+	e.apiState = APIDown // before Run starts
+	e.health.down = true
+	run(t, e)
+
+	eventually(t, "ok broadcast", func() bool {
+		for _, ev := range h.broadcastEvents() {
+			if u, ok := ev.Data.(APIStatusUpdate); ok && u.Bungie == APIOK {
+				return true
+			}
+		}
+		return false
+	})
+	eventually(t, "both players polled", func() bool { return pr.callCount("a") >= 1 && pr.callCount("b") >= 1 })
+}
+
+func TestEngine_FiveFailuresGoDown(t *testing.T) {
+	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
+	for _, id := range []string{"a", "b", "c", "d", "e"} {
+		st.watch(1, player(id))
+		pr.errs[id] = &bungie.TransportError{Path: "/x", Err: errors.New("reset")}
+	}
+	e := New(testConfig(), st, pr, always(status.Status{}), h, quietLog())
+	run(t, e)
+	eventually(t, "down", func() bool { return e.APIState() == APIDown })
+}
+
+func TestNew_ClampsZeroConfig(t *testing.T) {
+	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
+	st.watch(1, player("p1"))
+	e := New(Config{}, st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+	if e.cfg.Workers < 1 || e.cfg.Tick <= 0 {
+		t.Fatalf("cfg = %+v", e.cfg)
+	}
+	run(t, e)
+	eventually(t, "poll with zero config", func() bool { return st.count(st.saves, "p1") >= 1 })
+}
+
+// blockingProfiles blocks every call until release is closed or ctx is done.
+type blockingProfiles struct {
+	release chan struct{}
+	mu      sync.Mutex
+	cur     int
+	max     int
+	calls   int
+}
+
+func (b *blockingProfiles) GetProfile(ctx context.Context, _ int64, _ string) (*bungie.Profile, error) {
+	b.mu.Lock()
+	b.calls++
+	b.cur++
+	b.max = max(b.max, b.cur)
+	b.mu.Unlock()
+	defer func() {
+		b.mu.Lock()
+		b.cur--
+		b.mu.Unlock()
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-b.release:
+		return &bungie.Profile{}, nil
+	}
+}
+
+func (b *blockingProfiles) stats() (calls, cur, max int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.calls, b.cur, b.max
+}
+
+func TestEngine_ShutdownWithPollsInFlight(t *testing.T) {
+	st, h := newFakeStore(), &fakeHub{active: []int64{1}}
+	st.watch(1, player("p1"))
+	bp := &blockingProfiles{release: make(chan struct{})}
+	e := New(testConfig(), st, bp, always(status.Status{State: status.InMatch}), h, quietLog())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		e.Run(ctx)
+		close(done)
+	}()
+	eventually(t, "poll in flight", func() bool { _, cur, _ := bp.stats(); return cur == 1 })
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return after cancel")
+	}
+	if st.count(st.saves, "p1") != 0 || st.count(st.failures, "p1") != 0 || len(h.sentEvents()) != 0 {
+		t.Error("cancelled poll must not save or publish")
+	}
+}
+
+func TestEngine_WorkerConcurrencyCap(t *testing.T) {
+	st, h := newFakeStore(), &fakeHub{active: []int64{1}}
+	for _, id := range []string{"a", "b", "c", "d", "e", "f"} {
+		st.watch(1, player(id))
+	}
+	bp := &blockingProfiles{release: make(chan struct{})}
+	e := New(testConfig(), st, bp, always(status.Status{State: status.InMatch}), h, quietLog())
+	run(t, e)
+
+	eventually(t, "two concurrent polls", func() bool { _, cur, _ := bp.stats(); return cur == 2 })
+	close(bp.release)
+	eventually(t, "all polled", func() bool { c, _, _ := bp.stats(); return c == 6 })
+	if _, _, m := bp.stats(); m > 2 {
+		t.Errorf("max concurrent = %d, want <= 2", m)
 	}
 }

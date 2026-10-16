@@ -15,10 +15,10 @@ type entry struct {
 	inFlight   bool
 }
 
-// pickDue returns up to max players to poll now: manual refreshes first, then players whose
+// pickDue returns up to limit players to poll now: manual refreshes first, then players whose
 // interval has elapsed, oldest poll first. When demand exceeds capacity, every player's
 // interval stretches evenly because the oldest always goes next.
-func pickDue(entries map[string]*entry, now time.Time, interval time.Duration, max int) []string {
+func pickDue(entries map[string]*entry, now time.Time, interval time.Duration, limit int) []string {
 	type candidate struct {
 		id     string
 		manual bool
@@ -44,8 +44,8 @@ func pickDue(entries map[string]*entry, now time.Time, interval time.Duration, m
 		}
 		return cs[i].id < cs[j].id
 	})
-	if len(cs) > max {
-		cs = cs[:max]
+	if len(cs) > limit {
+		cs = cs[:limit]
 	}
 	ids := make([]string, len(cs))
 	for i, c := range cs {

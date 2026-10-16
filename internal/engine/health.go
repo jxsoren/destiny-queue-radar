@@ -14,6 +14,9 @@ const (
 // minHealthSamples is how many recent polls are needed before failures count as degraded.
 const minHealthSamples = 4
 
+// downAfterFailures consecutive failed polls mean Bungie is down even without SystemDisabled.
+const downAfterFailures = 5
+
 type sample struct {
 	at     time.Time
 	failed bool
@@ -24,13 +27,20 @@ type health struct {
 	window  time.Duration
 	samples []sample
 	down    bool
+	// consecutive counts failed polls since the last success.
+	consecutive int
 }
 
 // record notes one poll outcome. disabled means Bungie reported SystemDisabled (maintenance).
 func (h *health) record(at time.Time, failed, disabled bool) {
 	h.samples = append(h.samples, sample{at: at, failed: failed})
+	if failed {
+		h.consecutive++
+	} else {
+		h.consecutive = 0
+	}
 	switch {
-	case disabled:
+	case disabled, failed && h.consecutive >= downAfterFailures:
 		h.down = true
 	case !failed:
 		h.down = false
