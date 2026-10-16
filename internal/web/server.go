@@ -116,6 +116,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PATCH /api/watchlist/{membershipId}", s.mutating(s.authed(s.handleUpdateNote)))
 	s.mux.HandleFunc("DELETE /api/watchlist/{membershipId}", s.mutating(s.authed(s.handleRemoveWatch)))
 	s.mux.HandleFunc("GET /api/search", s.authed(s.handleSearch))
+	s.mux.HandleFunc("POST /api/refresh", s.mutating(s.authed(s.handleRefresh)))
+	s.mux.HandleFunc("GET /api/stream", s.authed(s.handleStream))
 	s.mux.HandleFunc("GET /api/matches/recent", s.authed(s.handleRecentMatches))
 	s.mux.HandleFunc("GET /api/matches/{instanceId}", s.authed(s.handleMatch))
 }
