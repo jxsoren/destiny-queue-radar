@@ -22,6 +22,7 @@ const (
 type Lookup interface {
 	Activity(hash uint32) (manifest.Activity, bool)
 	Mode(hash uint32) (manifest.Mode, bool)
+	ModeByType(modeType int) (manifest.Mode, bool)
 }
 
 type Classifier struct {
@@ -42,6 +43,9 @@ func New(l Lookup) *Classifier { return &Classifier{lookup: l} }
 //   - LIKELY_QUEUING needs the previous state to be IN_MATCH or LIKELY_QUEUING, the player
 //     in Orbit or a known social space, and the last match to have ended under queueWindow ago.
 //     A detour through PvE or an unknown activity therefore ends the queuing guess.
+//   - Cold start (spec §5.4): on the first classification (prev.State Unknown) the caller may
+//     have seeded LastPvPEndedAt from activity history; that qualifies for LIKELY_QUEUING the
+//     same way. No other previous state does.
 func (c *Classifier) Classify(p *bungie.Profile, prev status.Status, now time.Time) (status.Status, bool) {
 	next, known := c.current(p)
 	if !known {
@@ -62,7 +66,7 @@ func (c *Classifier) Classify(p *bungie.Profile, prev status.Status, now time.Ti
 		}
 	}
 	if next.State == status.NotInPvP &&
-		(prev.State == status.InMatch || prev.State == status.LikelyQueuing) &&
+		(prev.State == status.InMatch || prev.State == status.LikelyQueuing || prev.State == status.Unknown) &&
 		(next.Place == status.PlaceOrbit || next.Place == status.PlaceSocial) &&
 		next.LastPvPEndedAt != nil && now.Sub(*next.LastPvPEndedAt) < queueWindow {
 		next.State = status.LikelyQueuing
@@ -76,6 +80,16 @@ func playlistOf(s status.Status) string {
 		return s.Playlist
 	}
 	return s.Mode
+}
+
+// HistoryPlaylist names a match from activity history the way Classify names a match it saw
+// end: its playlist (the director activity), else its mode. It is "" when neither resolves.
+func (c *Classifier) HistoryPlaylist(a bungie.HistoryActivity) string {
+	if act, ok := c.lookup.Activity(a.ActivityDetails.DirectorActivityHash); ok && act.Name != "" {
+		return act.Name
+	}
+	mode, _ := c.lookup.ModeByType(a.ActivityDetails.Mode)
+	return mode.Name
 }
 
 // current classifies the profile on its own, without memory of earlier polls. The bool is

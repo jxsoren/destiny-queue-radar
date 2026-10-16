@@ -19,9 +19,24 @@ type ActivityDetails struct {
 }
 
 type HistoryActivity struct {
-	Period          time.Time       `json:"period"`
-	ActivityDetails ActivityDetails `json:"activityDetails"`
+	Period          time.Time            `json:"period"` // when the activity started
+	ActivityDetails ActivityDetails      `json:"activityDetails"`
+	Values          map[string]PGCRValue `json:"values"`
 }
+
+// Duration is how long the player was in the activity (values.activityDurationSeconds), or 0
+// when Bungie did not report it.
+func (a HistoryActivity) Duration() time.Duration {
+	v, ok := a.Values["activityDurationSeconds"]
+	if !ok || v.Basic.Value <= 0 {
+		return 0
+	}
+	return time.Duration(v.Basic.Value * float64(time.Second))
+}
+
+// EndedAt is when the player's activity ended: its start plus its duration. Without a reported
+// duration it is the start, the latest time known for certain.
+func (a HistoryActivity) EndedAt() time.Time { return a.Period.Add(a.Duration()) }
 
 // ActivityHistory returns one character's most recent activities in the given mode.
 // token may be empty for players whose history is public.

@@ -22,10 +22,11 @@ var activities = map[uint32]manifest.Activity{
 }
 
 var modes = map[uint32]manifest.Mode{
-	84: {Hash: 84, Name: "Trials of Osiris", Category: manifest.CategoryPvP},
-	87: {Hash: 87, Name: "Social", Category: manifest.CategoryNone},
-	4:  {Hash: 4, Name: "Raid", Category: manifest.CategoryPvE},
-	5:  {Hash: 5, Name: "AllPvP", Category: manifest.CategoryPvP},
+	84: {Hash: 84, Name: "Trials of Osiris", ModeType: 84, Category: manifest.CategoryPvP},
+	87: {Hash: 87, Name: "Social", ModeType: 87, Category: manifest.CategoryNone},
+	4:  {Hash: 4, Name: "Raid", ModeType: 4, Category: manifest.CategoryPvE},
+	5:  {Hash: 5, Name: "AllPvP", ModeType: 5, Category: manifest.CategoryPvP},
+	71: {Hash: 71, Name: "Clash: Quickplay", ModeType: 71, Category: manifest.CategoryPvP},
 }
 
 func (fakeLookup) Activity(h uint32) (manifest.Activity, bool) {
@@ -36,6 +37,15 @@ func (fakeLookup) Activity(h uint32) (manifest.Activity, bool) {
 func (fakeLookup) Mode(h uint32) (manifest.Mode, bool) {
 	m, ok := modes[h]
 	return m, ok
+}
+
+func (fakeLookup) ModeByType(t int) (manifest.Mode, bool) {
+	for _, m := range modes {
+		if m.ModeType == t {
+			return m, true
+		}
+	}
+	return manifest.Mode{}, false
 }
 
 var (
@@ -263,4 +273,71 @@ func TestClassify_Hardening(t *testing.T) {
 			t.Errorf("state = %s, want NOT_IN_PVP", got.State)
 		}
 	})
+}
+
+// Cold start: the engine seeds LastPvPEndedAt from activity history before the first
+// classification (prev.State is Unknown).
+func TestClassify_ColdStartUsingHistory(t *testing.T) {
+	c := New(fakeLookup{})
+	seeded := func(state status.State, ago time.Duration) status.Status {
+		ended := now.Add(-ago)
+		return status.Status{State: state, LastPvPEndedAt: &ended, LastPvPPlaylist: "Trials of Osiris"}
+	}
+	tests := []struct {
+		name      string
+		prev      status.Status
+		p         *bungie.Profile
+		wantState status.State
+	}{
+		{"ended 2m ago, in orbit, is likely queuing", seeded(status.Unknown, 2*time.Minute), profile(true, orbitActivityHash, 0, 0), status.LikelyQueuing},
+		{"ended 2m ago, in the tower, is likely queuing", seeded(status.Unknown, 2*time.Minute), profile(true, 300, 87, 0), status.LikelyQueuing},
+		{"ended 6m ago is not queuing", seeded(status.Unknown, 6*time.Minute), profile(true, orbitActivityHash, 0, 0), status.NotInPvP},
+		{"ended 2m ago, in PvE, is not queuing", seeded(status.Unknown, 2*time.Minute), profile(true, 400, 4, 0), status.NotInPvP},
+		{"ended 2m ago, unknown place, is not queuing", seeded(status.Unknown, 2*time.Minute), profile(true, 999, 998, 0), status.NotInPvP},
+		{"ended 2m ago, offline", seeded(status.Unknown, 2*time.Minute), profile(false, 0, 0, 0), status.Offline},
+		{"ended 2m ago, back in a match", seeded(status.Unknown, 2*time.Minute), profile(true, 100, 84, 200), status.InMatch},
+		{"no history is not queuing", status.Status{}, profile(true, orbitActivityHash, 0, 0), status.NotInPvP},
+		// Only a first classification qualifies: a known earlier state that was not PvP stays so.
+		{"prev NOT_IN_PVP does not qualify", seeded(status.NotInPvP, 2*time.Minute), profile(true, orbitActivityHash, 0, 0), status.NotInPvP},
+		{"prev OFFLINE does not qualify", seeded(status.Offline, 2*time.Minute), profile(true, orbitActivityHash, 0, 0), status.NotInPvP},
+		{"prev PRIVATE does not qualify", seeded(status.Private, 2*time.Minute), profile(true, orbitActivityHash, 0, 0), status.NotInPvP},
+	}
+	for _, tt := range tests {
+		got := classify(t, c, tt.p, tt.prev, now)
+		if got.State != tt.wantState {
+			t.Errorf("%s: state = %s, want %s", tt.name, got.State, tt.wantState)
+		}
+		if !timePtrEqual(got.LastPvPEndedAt, tt.prev.LastPvPEndedAt) || got.LastPvPPlaylist != tt.prev.LastPvPPlaylist {
+			t.Errorf("%s: last PvP = %v %q, want the seeded %v %q", tt.name, got.LastPvPEndedAt, got.LastPvPPlaylist, tt.prev.LastPvPEndedAt, tt.prev.LastPvPPlaylist)
+		}
+	}
+}
+
+func timePtrEqual(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Equal(*b)
+}
+
+func TestHistoryPlaylist(t *testing.T) {
+	c := New(fakeLookup{})
+	act := func(director uint32, mode int) bungie.HistoryActivity {
+		return bungie.HistoryActivity{ActivityDetails: bungie.ActivityDetails{DirectorActivityHash: director, Mode: mode}}
+	}
+	tests := []struct {
+		name string
+		a    bungie.HistoryActivity
+		want string
+	}{
+		{"playlist from the director activity", act(200, 84), "Trials of Osiris"},
+		{"unknown playlist falls back to the mode", act(999, 71), "Clash: Quickplay"},
+		{"no playlist hash falls back to the mode", act(0, 71), "Clash: Quickplay"},
+		{"nothing resolves", act(999, 999), ""},
+	}
+	for _, tt := range tests {
+		if got := c.HistoryPlaylist(tt.a); got != tt.want {
+			t.Errorf("%s: got %q, want %q", tt.name, got, tt.want)
+		}
+	}
 }

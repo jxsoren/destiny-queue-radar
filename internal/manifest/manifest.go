@@ -51,6 +51,7 @@ type Manifest struct {
 	Version    string
 	activities map[uint32]Activity
 	modes      map[uint32]Mode
+	modeTypes  map[int]Mode // by DestinyActivityModeType, as activity history reports modes
 }
 
 // Source is implemented by *bungie.Client.
@@ -98,12 +99,18 @@ func Load(ctx context.Context, src Source) (*Manifest, error) {
 		Version:    info.Version,
 		activities: make(map[uint32]Activity, len(acts)),
 		modes:      make(map[uint32]Mode, len(modes)),
+		modeTypes:  make(map[int]Mode, len(modes)),
 	}
 	for _, d := range acts {
 		m.activities[d.Hash] = Activity{Hash: d.Hash, Name: d.DisplayProperties.Name, IsPvP: d.IsPvP, PlaceHash: d.PlaceHash}
 	}
 	for _, d := range modes {
-		m.modes[d.Hash] = Mode{Hash: d.Hash, Name: d.DisplayProperties.Name, ModeType: d.ModeType, Category: ModeCategory(d.ActivityModeCategory)}
+		mode := Mode{Hash: d.Hash, Name: d.DisplayProperties.Name, ModeType: d.ModeType, Category: ModeCategory(d.ActivityModeCategory)}
+		m.modes[d.Hash] = mode
+		// Should two definitions share a mode type, keep the lower hash so lookups are stable.
+		if prev, ok := m.modeTypes[d.ModeType]; !ok || d.Hash < prev.Hash {
+			m.modeTypes[d.ModeType] = mode
+		}
 	}
 	return m, nil
 }
@@ -115,5 +122,11 @@ func (m *Manifest) Activity(hash uint32) (Activity, bool) {
 
 func (m *Manifest) Mode(hash uint32) (Mode, bool) {
 	mode, ok := m.modes[hash]
+	return mode, ok
+}
+
+// ModeByType finds a mode by its DestinyActivityModeType, the number activity history uses.
+func (m *Manifest) ModeByType(modeType int) (Mode, bool) {
+	mode, ok := m.modeTypes[modeType]
 	return mode, ok
 }

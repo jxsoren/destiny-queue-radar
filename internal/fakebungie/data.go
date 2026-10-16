@@ -20,7 +20,8 @@ const (
 	SelfName = "Tester#0001"
 )
 
-// The test user's two recent PvP matches, newest first.
+// The test user's two recent PvP matches, newest first. Every lobby member has them in their
+// history.
 const (
 	LastMatchID  = "9001"
 	OlderMatchID = "9002"
@@ -66,9 +67,10 @@ type member struct {
 }
 
 type lobby struct {
-	period  time.Time
-	mapHash uint32
-	members []member
+	period   time.Time // start
+	duration time.Duration
+	mapHash  uint32
+	members  []member
 }
 
 func roster(now time.Time) map[string]*player {
@@ -90,11 +92,13 @@ func roster(now time.Time) map[string]*player {
 
 func lobbies(now time.Time) map[string]lobby {
 	return map[string]lobby{
-		LastMatchID: {period: now.Add(-12 * time.Minute), mapHash: BurnoutHash, members: []member{
+		// Ended 7 minutes before startup: a cold start records it without making anyone
+		// LIKELY_QUEUING (the window is 5 minutes).
+		LastMatchID: {period: now.Add(-12 * time.Minute), duration: 5 * time.Minute, mapHash: BurnoutHash, members: []member{
 			{SelfID, 16}, {"4611686018400000002", 16}, {"4611686018400000003", 16},
 			{"4611686018400000004", 17}, {"4611686018400000005", 17}, {"4611686018400000006", 17},
 		}},
-		OlderMatchID: {period: now.Add(-50 * time.Minute), mapHash: JavelinHash, members: []member{
+		OlderMatchID: {period: now.Add(-50 * time.Minute), duration: 9 * time.Minute, mapHash: JavelinHash, members: []member{
 			{SelfID, 16}, {"4611686018400000007", 16}, {"4611686018400000002", 17}, {"4611686018400000004", 17},
 		}},
 	}

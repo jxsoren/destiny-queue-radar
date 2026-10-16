@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
 	"time"
 
@@ -30,6 +31,18 @@ type Profiles interface {
 	GetProfile(ctx context.Context, membershipType int64, membershipID string) (*bungie.Profile, error)
 }
 
+// History is implemented by *bungie.Client.
+type History interface {
+	ActivityHistory(ctx context.Context, token string, membershipType int64, membershipID, characterID string, mode, count int) ([]bungie.HistoryActivity, error)
+}
+
+// Classifier is implemented by *classifier.Classifier.
+type Classifier interface {
+	status.Classifier
+	// HistoryPlaylist names a match from activity history the way Classify names one it saw end.
+	HistoryPlaylist(a bungie.HistoryActivity) string
+}
+
 // Hub is the subset of *hub.Hub the engine uses.
 type Hub interface {
 	ActiveUsers(grace time.Duration) []int64
@@ -40,6 +53,7 @@ type Hub interface {
 var (
 	_ Store    = (*store.Store)(nil)
 	_ Profiles = (*bungie.Client)(nil)
+	_ History  = (*bungie.Client)(nil)
 	_ Hub      = (*hub.Hub)(nil)
 )
 
@@ -97,7 +111,8 @@ type Engine struct {
 	cfg        Config
 	store      Store
 	profiles   Profiles
-	classifier status.Classifier
+	history    History
+	classifier Classifier
 	hub        Hub
 	log        *slog.Logger
 	now        func() time.Time
@@ -108,9 +123,13 @@ type Engine struct {
 	health      health
 	apiState    APIState
 	lastProbe   time.Time
+	// historyTried holds players whose cold-start history lookup has run. It outlives scheduler
+	// entries, which are dropped when a player leaves the active set, so the lookup happens at
+	// most once per player per process even when it finds nothing or fails.
+	historyTried map[string]bool
 }
 
-func New(cfg Config, st Store, p Profiles, c status.Classifier, h Hub, log *slog.Logger) *Engine {
+func New(cfg Config, st Store, p Profiles, hist History, c Classifier, h Hub, log *slog.Logger) *Engine {
 	cfg.Workers = max(cfg.Workers, 1)
 	if cfg.Tick <= 0 {
 		cfg.Tick = time.Second
@@ -122,6 +141,7 @@ func New(cfg Config, st Store, p Profiles, c status.Classifier, h Hub, log *slog
 		cfg:         cfg,
 		store:       st,
 		profiles:    p,
+		history:     hist,
 		classifier:  c,
 		hub:         h,
 		log:         log,
@@ -130,6 +150,8 @@ func New(cfg Config, st Store, p Profiles, c status.Classifier, h Hub, log *slog
 		lastRefresh: map[int64]time.Time{},
 		health:      health{window: time.Minute},
 		apiState:    APIOK,
+
+		historyTried: map[string]bool{},
 	}
 }
 
@@ -346,6 +368,14 @@ func (e *Engine) poll(ctx context.Context, id string) {
 			e.savePollFailure(ctx, id, now)
 			return
 		}
+		if e.needsColdStart(id, profile, next) {
+			if seeded, ok := e.coldStart(ctx, membershipType, id, profile, prev.Status, now); ok {
+				next, _ = e.classifier.Classify(profile, seeded, now) // same profile: still decided
+			}
+			if ctx.Err() != nil {
+				return
+			}
+		}
 	case bungie.IsNotFound(err):
 		next = status.Status{State: status.NotFound}
 	default:
@@ -370,6 +400,84 @@ func (e *Engine) poll(ctx context.Context, id string) {
 	if !next.Equal(prev.Status) {
 		e.publish(ctx, id, next, now)
 	}
+}
+
+// maxHistoryCharacters is how many characters a cold start looks at; Destiny allows three.
+const maxHistoryCharacters = 3
+
+// needsColdStart reports whether to look up activity history (spec §5.4): the player has no
+// recorded last PvP match (and the classifier did not just see one end), is not private, has
+// characters, and this process has not looked before.
+//
+// The lookup happens inline, in the same job right after a successful GetProfile, instead of
+// in its own scheduler tier: it runs before the player's next routine poll, which gives cold
+// start the priority over routine polls that spec §7.1 asks for, and manual refreshes still
+// jump ahead of both in dispatch.
+func (e *Engine) needsColdStart(id string, p *bungie.Profile, next status.Status) bool {
+	if next.LastPvPEndedAt != nil || next.State == status.Private || len(p.Characters.Data) == 0 {
+		return false
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.historyTried[id] {
+		return false
+	}
+	e.historyTried[id] = true
+	return true
+}
+
+// coldStart fetches the latest PvP match of each of the player's most recently played
+// characters and returns prev with the latest-ending match recorded as the last PvP match. ok
+// is false when no match was found.
+//
+// History errors are logged and skipped: they never fail the poll, and they are not API health
+// samples. The profile call already sampled Bungie's health for this poll, and a private
+// history or one character's failure says nothing about the API as a whole; counting them
+// would let one cold-start burst flip the board to degraded.
+func (e *Engine) coldStart(ctx context.Context, membershipType int64, id string, p *bungie.Profile, prev status.Status, now time.Time) (status.Status, bool) {
+	chars := make([]bungie.Character, 0, len(p.Characters.Data))
+	for cid, c := range p.Characters.Data {
+		c.CharacterID = cid
+		chars = append(chars, c)
+	}
+	sort.Slice(chars, func(i, j int) bool {
+		if !chars[i].DateLastPlayed.Equal(chars[j].DateLastPlayed) {
+			return chars[i].DateLastPlayed.After(chars[j].DateLastPlayed)
+		}
+		return chars[i].CharacterID < chars[j].CharacterID
+	})
+	chars = chars[:min(len(chars), maxHistoryCharacters)]
+
+	var latest *bungie.HistoryActivity
+	for _, c := range chars {
+		if ctx.Err() != nil {
+			return prev, false
+		}
+		acts, err := e.history.ActivityHistory(ctx, "", membershipType, id, c.CharacterID, bungie.ModeAllPvP, 1)
+		if err != nil {
+			if ctx.Err() != nil {
+				return prev, false
+			}
+			e.log.Warn("cold-start history failed", "player", id, "character", c.CharacterID, "err", err)
+			continue
+		}
+		for i := range acts {
+			if latest == nil || acts[i].EndedAt().After(latest.EndedAt()) {
+				latest = &acts[i]
+			}
+		}
+	}
+	if latest == nil {
+		e.log.Debug("cold-start history found no PvP match", "player", id)
+		return prev, false
+	}
+	ended := latest.EndedAt()
+	if ended.After(now) {
+		ended = now // clock skew must not put the match in the future
+	}
+	prev.LastPvPEndedAt = &ended
+	prev.LastPvPPlaylist = e.classifier.HistoryPlaylist(*latest)
+	return prev, true
 }
 
 func (e *Engine) savePollFailure(ctx context.Context, id string, now time.Time) {

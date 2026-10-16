@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"sort"
@@ -117,13 +118,14 @@ func (f *fakeStore) get(id string) store.Player {
 }
 
 type fakeProfiles struct {
-	mu    sync.Mutex
-	errs  map[string]error
-	calls map[string]int
+	mu       sync.Mutex
+	errs     map[string]error
+	calls    map[string]int
+	profiles map[string]*bungie.Profile // empty profile when unset
 }
 
 func newFakeProfiles() *fakeProfiles {
-	return &fakeProfiles{errs: map[string]error{}, calls: map[string]int{}}
+	return &fakeProfiles{errs: map[string]error{}, calls: map[string]int{}, profiles: map[string]*bungie.Profile{}}
 }
 
 func (f *fakeProfiles) GetProfile(_ context.Context, _ int64, id string) (*bungie.Profile, error) {
@@ -132,6 +134,9 @@ func (f *fakeProfiles) GetProfile(_ context.Context, _ int64, id string) (*bungi
 	f.calls[id]++
 	if err := f.errs[id]; err != nil {
 		return nil, err
+	}
+	if p, ok := f.profiles[id]; ok {
+		return p, nil
 	}
 	return &bungie.Profile{}, nil
 }
@@ -188,6 +193,17 @@ type classifyFunc func(*bungie.Profile, status.Status, time.Time) (status.Status
 
 func (f classifyFunc) Classify(p *bungie.Profile, prev status.Status, now time.Time) (status.Status, bool) {
 	return f(p, prev, now)
+}
+
+func (classifyFunc) HistoryPlaylist(a bungie.HistoryActivity) string {
+	return fmt.Sprintf("playlist %d", a.ActivityDetails.DirectorActivityHash)
+}
+
+// noHistory is a History with no PvP matches for anyone.
+type noHistory struct{}
+
+func (noHistory) ActivityHistory(context.Context, string, int64, string, string, int, int) ([]bungie.HistoryActivity, error) {
+	return nil, nil
 }
 
 func always(st status.Status) classifyFunc {
@@ -249,7 +265,7 @@ func TestEngine_PollsOnlyActiveUsersPlayersAndPublishesChange(t *testing.T) {
 	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
 	st.watch(1, player("p1"))
 	st.watch(2, player("p2")) // user 2 is offline
-	e := New(testConfig(), st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+	e := New(testConfig(), st, pr, noHistory{}, always(status.Status{State: status.InMatch}), h, quietLog())
 	run(t, e)
 
 	eventually(t, "p1 saved", func() bool { return st.count(st.saves, "p1") == 1 })
@@ -275,7 +291,7 @@ func TestEngine_NoEventWhenStatusUnchanged(t *testing.T) {
 	st.watch(1, player("p1"))
 	cfg := testConfig()
 	cfg.Interval = 10 * time.Millisecond
-	e := New(cfg, st, pr, always(status.Status{State: status.NotInPvP, Place: status.PlaceOrbit}), h, quietLog())
+	e := New(cfg, st, pr, noHistory{}, always(status.Status{State: status.NotInPvP, Place: status.PlaceOrbit}), h, quietLog())
 	run(t, e)
 
 	eventually(t, "3 polls", func() bool { return st.count(st.saves, "p1") >= 3 })
@@ -288,7 +304,7 @@ func TestEngine_NotFoundIsStoredAsStatus(t *testing.T) {
 	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
 	st.watch(1, player("gone"))
 	pr.errs["gone"] = &bungie.APIError{Code: bungie.CodeAccountNotFound}
-	e := New(testConfig(), st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+	e := New(testConfig(), st, pr, noHistory{}, always(status.Status{State: status.InMatch}), h, quietLog())
 	run(t, e)
 
 	eventually(t, "not found saved", func() bool { return st.get("gone").Status.State == status.NotFound })
@@ -300,7 +316,7 @@ func TestEngine_NotFoundIsStoredAsStatus(t *testing.T) {
 func TestEngine_UndecidableProfileIsAFailedPoll(t *testing.T) {
 	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
 	st.watch(1, player("p1"))
-	e := New(testConfig(), st, pr, undecidable(), h, quietLog())
+	e := New(testConfig(), st, pr, noHistory{}, undecidable(), h, quietLog())
 	run(t, e)
 
 	eventually(t, "failure saved", func() bool { return st.count(st.failures, "p1") >= 1 })
@@ -322,7 +338,7 @@ func TestEngine_TransportErrorRecordsFailureOnly(t *testing.T) {
 	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
 	st.watch(1, player("p1"))
 	pr.errs["p1"] = &bungie.TransportError{Path: "/x", Err: errors.New("connection reset")}
-	e := New(testConfig(), st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+	e := New(testConfig(), st, pr, noHistory{}, always(status.Status{State: status.InMatch}), h, quietLog())
 	run(t, e)
 
 	eventually(t, "failure saved", func() bool { return st.count(st.failures, "p1") == 1 })
@@ -335,7 +351,7 @@ func TestEngine_SystemDisabledBroadcastsDown(t *testing.T) {
 	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
 	st.watch(1, player("p1"))
 	pr.errs["p1"] = &bungie.APIError{Code: bungie.CodeSystemDisabled}
-	e := New(testConfig(), st, pr, always(status.Status{}), h, quietLog())
+	e := New(testConfig(), st, pr, noHistory{}, always(status.Status{}), h, quietLog())
 	run(t, e)
 
 	eventually(t, "down broadcast", func() bool { return len(h.broadcastEvents()) > 0 })
@@ -350,7 +366,7 @@ func TestEngine_SystemDisabledBroadcastsDown(t *testing.T) {
 
 func TestDispatch_WhileDownOnlyProbesOncePerInterval(t *testing.T) {
 	st, h := newFakeStore(), &fakeHub{}
-	e := New(testConfig(), st, newFakeProfiles(), always(status.Status{}), h, quietLog())
+	e := New(testConfig(), st, newFakeProfiles(), noHistory{}, always(status.Status{}), h, quietLog())
 	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
 	e.now = func() time.Time { return now }
 	for _, id := range []string{"a", "b", "c"} {
@@ -374,7 +390,7 @@ func TestDispatch_WhileDownOnlyProbesOncePerInterval(t *testing.T) {
 func TestRequestRefresh_Cooldown(t *testing.T) {
 	st := newFakeStore()
 	st.watch(1, player("p1"))
-	e := New(testConfig(), st, newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	e := New(testConfig(), st, newFakeProfiles(), noHistory{}, always(status.Status{}), &fakeHub{}, quietLog())
 	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
 	e.now = func() time.Time { return now }
 
@@ -401,7 +417,7 @@ func TestRequestRefresh_SkipsRecentlyPolled(t *testing.T) {
 	pOld.LastPolledAt, pRecent.LastPolledAt = &old, &recent
 	st.watch(1, pOld)
 	st.watch(1, pRecent)
-	e := New(testConfig(), st, newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	e := New(testConfig(), st, newFakeProfiles(), noHistory{}, always(status.Status{}), &fakeHub{}, quietLog())
 	e.now = func() time.Time { return now }
 
 	if err := e.RequestRefresh(context.Background(), 1); err != nil {
@@ -422,7 +438,7 @@ func TestRequestRefresh_PollsAlreadyPolledPlayer(t *testing.T) {
 	st.watch(1, player("p1"))
 	cfg := testConfig()
 	cfg.RefreshSkip, cfg.RefreshCooldown = 0, 0
-	e := New(cfg, st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+	e := New(cfg, st, pr, noHistory{}, always(status.Status{State: status.InMatch}), h, quietLog())
 	run(t, e)
 
 	eventually(t, "first poll", func() bool { return pr.callCount("p1") == 1 })
@@ -435,7 +451,7 @@ func TestRequestRefresh_PollsAlreadyPolledPlayer(t *testing.T) {
 func TestRequestRefresh_PollsForInactiveUser(t *testing.T) {
 	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{} // nobody active
 	st.watch(1, player("p1"))
-	e := New(testConfig(), st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+	e := New(testConfig(), st, pr, noHistory{}, always(status.Status{State: status.InMatch}), h, quietLog())
 	run(t, e)
 
 	if err := e.RequestRefresh(context.Background(), 1); err != nil {
@@ -447,7 +463,7 @@ func TestRequestRefresh_PollsForInactiveUser(t *testing.T) {
 func TestRequestRefresh_StoreErrorDoesNotConsumeCooldown(t *testing.T) {
 	st := newFakeStore()
 	st.watch(1, player("p1"))
-	e := New(testConfig(), st, newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	e := New(testConfig(), st, newFakeProfiles(), noHistory{}, always(status.Status{}), &fakeHub{}, quietLog())
 	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
 	e.now = func() time.Time { return now }
 
@@ -468,7 +484,7 @@ func TestRequestRefresh_StoreErrorDoesNotConsumeCooldown(t *testing.T) {
 func TestRequestRefresh_SkipsInFlight(t *testing.T) {
 	st := newFakeStore()
 	st.watch(1, player("p1"))
-	e := New(testConfig(), st, newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	e := New(testConfig(), st, newFakeProfiles(), noHistory{}, always(status.Status{}), &fakeHub{}, quietLog())
 	e.entries["p1"] = &entry{player: player("p1"), inFlight: true}
 	if err := e.RequestRefresh(context.Background(), 1); err != nil {
 		t.Fatal(err)
@@ -479,7 +495,7 @@ func TestRequestRefresh_SkipsInFlight(t *testing.T) {
 }
 
 func TestRecordHealth_ConsecutiveFailuresGoDownAndDelayProbe(t *testing.T) {
-	e := New(testConfig(), newFakeStore(), newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), noHistory{}, always(status.Status{}), &fakeHub{}, quietLog())
 	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
 	for i := 0; i < downAfterFailures; i++ {
 		e.recordHealth(now, &bungie.TransportError{Path: "/x", Err: errors.New("reset")})
@@ -494,7 +510,7 @@ func TestRecordHealth_ConsecutiveFailuresGoDownAndDelayProbe(t *testing.T) {
 
 func TestRecordHealth_IgnoresThrottlingAndNotFound(t *testing.T) {
 	h := &fakeHub{}
-	e := New(testConfig(), newFakeStore(), newFakeProfiles(), always(status.Status{}), h, quietLog())
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), noHistory{}, always(status.Status{}), h, quietLog())
 	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
 	for i := 0; i < 10; i++ {
 		e.recordHealth(now, &bungie.APIError{Code: 36, ThrottleSeconds: 5})
@@ -511,7 +527,7 @@ func TestEngine_RecoversFromDown(t *testing.T) {
 	st.watch(1, player("b"))
 	cfg := testConfig()
 	cfg.DownProbe = 10 * time.Millisecond
-	e := New(cfg, st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+	e := New(cfg, st, pr, noHistory{}, always(status.Status{State: status.InMatch}), h, quietLog())
 	e.apiState = APIDown // before Run starts
 	e.health.down = true
 	run(t, e)
@@ -533,7 +549,7 @@ func TestEngine_FiveFailuresGoDown(t *testing.T) {
 		st.watch(1, player(id))
 		pr.errs[id] = &bungie.TransportError{Path: "/x", Err: errors.New("reset")}
 	}
-	e := New(testConfig(), st, pr, always(status.Status{}), h, quietLog())
+	e := New(testConfig(), st, pr, noHistory{}, always(status.Status{}), h, quietLog())
 	run(t, e)
 	eventually(t, "down", func() bool { return e.APIState() == APIDown })
 }
@@ -541,7 +557,7 @@ func TestEngine_FiveFailuresGoDown(t *testing.T) {
 func TestNew_ClampsZeroConfig(t *testing.T) {
 	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
 	st.watch(1, player("p1"))
-	e := New(Config{}, st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+	e := New(Config{}, st, pr, noHistory{}, always(status.Status{State: status.InMatch}), h, quietLog())
 	if e.cfg.Workers < 1 || e.cfg.Tick <= 0 {
 		t.Fatalf("cfg = %+v", e.cfg)
 	}
@@ -587,7 +603,7 @@ func TestEngine_ShutdownWithPollsInFlight(t *testing.T) {
 	st, h := newFakeStore(), &fakeHub{active: []int64{1}}
 	st.watch(1, player("p1"))
 	bp := &blockingProfiles{release: make(chan struct{})}
-	e := New(testConfig(), st, bp, always(status.Status{State: status.InMatch}), h, quietLog())
+	e := New(testConfig(), st, bp, noHistory{}, always(status.Status{State: status.InMatch}), h, quietLog())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -613,7 +629,7 @@ func TestEngine_WorkerConcurrencyCap(t *testing.T) {
 		st.watch(1, player(id))
 	}
 	bp := &blockingProfiles{release: make(chan struct{})}
-	e := New(testConfig(), st, bp, always(status.Status{State: status.InMatch}), h, quietLog())
+	e := New(testConfig(), st, bp, noHistory{}, always(status.Status{State: status.InMatch}), h, quietLog())
 	run(t, e)
 
 	eventually(t, "two concurrent polls", func() bool { _, cur, _ := bp.stats(); return cur == 2 })
@@ -633,7 +649,7 @@ func TestDispatch_DegradedSlowsPolling(t *testing.T) {
 	}{{APIOK, 8}, {APIDegraded, 2}} {
 		cfg := testConfig()
 		cfg.Workers = 8
-		e := New(cfg, newFakeStore(), newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+		e := New(cfg, newFakeStore(), newFakeProfiles(), noHistory{}, always(status.Status{}), &fakeHub{}, quietLog())
 		for i := 0; i < 8; i++ {
 			id := string(rune('a' + i))
 			e.entries[id] = &entry{player: player(id)}
@@ -648,7 +664,7 @@ func TestDispatch_DegradedSlowsPolling(t *testing.T) {
 }
 
 func TestRecordHealth_ThrottledSystemDisabledIsDown(t *testing.T) {
-	e := New(testConfig(), newFakeStore(), newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), noHistory{}, always(status.Status{}), &fakeHub{}, quietLog())
 	e.recordHealth(time.Now(), &bungie.APIError{Code: bungie.CodeSystemDisabled, ThrottleSeconds: 5})
 	if e.APIState() != APIDown {
 		t.Errorf("state = %s, want down", e.APIState())
@@ -657,7 +673,7 @@ func TestRecordHealth_ThrottledSystemDisabledIsDown(t *testing.T) {
 
 func TestRecordHealth_ThrottledErrorLetsStaleDegradedDecay(t *testing.T) {
 	h := &fakeHub{}
-	e := New(testConfig(), newFakeStore(), newFakeProfiles(), always(status.Status{}), h, quietLog())
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), noHistory{}, always(status.Status{}), h, quietLog())
 	t0 := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
 	boom := &bungie.TransportError{Path: "/x", Err: errors.New("reset")}
 	for _, err := range []error{boom, boom, boom, nil, boom, boom} {
@@ -677,7 +693,7 @@ func TestRecordHealth_ThrottledErrorLetsStaleDegradedDecay(t *testing.T) {
 }
 
 func TestDispatch_EmptyProbeDoesNotConsumeSlot(t *testing.T) {
-	e := New(testConfig(), newFakeStore(), newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), noHistory{}, always(status.Status{}), &fakeHub{}, quietLog())
 	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
 	e.now = func() time.Time { return now }
 	e.apiState = APIDown
@@ -695,7 +711,7 @@ func TestEngine_NotFoundPlayerIsPolledOnce(t *testing.T) {
 	pr.errs["gone"] = &bungie.APIError{Code: bungie.CodeAccountNotFound}
 	cfg := testConfig()
 	cfg.Interval = 10 * time.Millisecond
-	e := New(cfg, st, pr, always(status.Status{}), h, quietLog())
+	e := New(cfg, st, pr, noHistory{}, always(status.Status{}), h, quietLog())
 	run(t, e)
 
 	eventually(t, "polled", func() bool { return st.count(st.saves, "gone") == 1 })
@@ -716,7 +732,7 @@ func notFoundPlayer(id string) store.Player {
 func TestRecheck_PicksNotFoundEntryWithoutConsumingCooldown(t *testing.T) {
 	st := newFakeStore()
 	st.watch(1, notFoundPlayer("p1"))
-	e := New(testConfig(), st, newFakeProfiles(), always(status.Status{}), &fakeHub{active: []int64{1}}, quietLog())
+	e := New(testConfig(), st, newFakeProfiles(), noHistory{}, always(status.Status{}), &fakeHub{active: []int64{1}}, quietLog())
 	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
 	e.now = func() time.Time { return now }
 	if err := e.refreshActiveSet(context.Background()); err != nil {
@@ -746,7 +762,7 @@ func TestRecheck_PicksNotFoundEntryWithoutConsumingCooldown(t *testing.T) {
 }
 
 func TestRecheck_InFlightPollsAgainAfterwards(t *testing.T) {
-	e := New(testConfig(), newFakeStore(), newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), noHistory{}, always(status.Status{}), &fakeHub{}, quietLog())
 	e.entries["p1"] = &entry{player: notFoundPlayer("p1"), inFlight: true}
 	e.Recheck(3, "p1")
 	if e.entries["p1"].manualAt.IsZero() {
@@ -758,7 +774,7 @@ func TestRecheck_UnknownPlayerIsPolledAndSurvivesRefreshActiveSet(t *testing.T) 
 	st, pr := newFakeStore(), newFakeProfiles()
 	st.watch(1, notFoundPlayer("p1"))
 	h := &fakeHub{active: []int64{1}}
-	e := New(testConfig(), st, pr, always(status.Status{State: status.InMatch}), h, quietLog())
+	e := New(testConfig(), st, pr, noHistory{}, always(status.Status{State: status.InMatch}), h, quietLog())
 
 	e.Recheck(3, "p1") // no entry yet
 	if err := e.refreshActiveSet(context.Background()); err != nil {
@@ -787,7 +803,7 @@ func TestRecheck_UnknownPlayerIsPolledAndSurvivesRefreshActiveSet(t *testing.T) 
 
 func TestRecheck_PlayerGoneFromStoreIsHarmless(t *testing.T) {
 	st, pr := newFakeStore(), newFakeProfiles()
-	e := New(testConfig(), st, pr, always(status.Status{}), &fakeHub{}, quietLog())
+	e := New(testConfig(), st, pr, noHistory{}, always(status.Status{}), &fakeHub{}, quietLog())
 	e.Recheck(3, "ghost")
 	jobs := make(chan string, 1)
 	e.dispatch(jobs)

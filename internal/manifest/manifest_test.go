@@ -108,3 +108,23 @@ func TestLoad_ActivityFileError(t *testing.T) {
 		t.Errorf("m=%v err=%v", m, err)
 	}
 }
+
+func TestModeByType(t *testing.T) {
+	src := newFake()
+	modes := src.files["/m.json"].(map[string]any)
+	// A second definition with the same modeType: the lower hash wins, so lookups are stable.
+	modes["299"] = map[string]any{"hash": 299, "displayProperties": map[string]any{"name": "Trials"}, "modeType": 84, "activityModeCategory": 2}
+	m, err := Load(context.Background(), src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode, ok := m.ModeByType(84); !ok || mode.Hash != 299 || mode.Name != "Trials" {
+		t.Errorf("ModeByType(84) = %+v ok=%v", mode, ok)
+	}
+	if mode, ok := m.ModeByType(4); !ok || mode.Name != "Raid" {
+		t.Errorf("ModeByType(4) = %+v ok=%v", mode, ok)
+	}
+	if _, ok := m.ModeByType(999); ok {
+		t.Error("unknown mode type should not be found")
+	}
+}

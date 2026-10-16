@@ -84,7 +84,7 @@ func run(log *slog.Logger) error {
 	}
 	tokens := auth.NewTokenManager(st, box, cfg.OAuthClientID, cfg.OAuthClientSecret, cfg.BungieBaseURL, nil)
 	h := hub.New(32)
-	eng := engine.New(engineConfig(), st, client, classifier.New(man), h, log)
+	eng := engine.New(engineConfig(), st, client, client, classifier.New(man), h, log)
 	// Closed when Shutdown begins, so open SSE streams end while normal requests drain.
 	streamsDone := make(chan struct{})
 	handler := web.New(web.Deps{

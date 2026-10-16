@@ -193,3 +193,37 @@ func TestConcurrentStateChangesAndReads(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestHistoryHasDurationsForEveryLobbyMember(t *testing.T) {
+	ctx := context.Background()
+	s := New()
+	c := client(t, s)
+	vexChar := s.players[vex].characterID()
+	acts, err := c.ActivityHistory(ctx, "", 3, vex, vexChar, bungie.ModeAllPvP, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(acts) != 1 || acts[0].ActivityDetails.InstanceID != LastMatchID {
+		t.Fatalf("Vex's history (count 1) = %+v, want only the last match", acts)
+	}
+	last := s.lobbies[LastMatchID]
+	if acts[0].Duration() != last.duration || !acts[0].EndedAt().Equal(last.period.Add(last.duration)) {
+		t.Errorf("duration = %s, ended %s; want %s", acts[0].Duration(), acts[0].EndedAt(), last.duration)
+	}
+	// A cold start must not make the e2e board's first poll of Vex LIKELY_QUEUING.
+	if ago := time.Since(acts[0].EndedAt()); ago <= 5*time.Minute {
+		t.Errorf("last match ended %s ago; keep it outside the 5-minute queue window", ago)
+	}
+
+	all, err := c.ActivityHistory(ctx, "", SelfType, SelfID, "c", bungie.ModeAllPvP, 10)
+	if err != nil || len(all) != 2 || all[0].ActivityDetails.InstanceID != LastMatchID || all[1].ActivityDetails.InstanceID != OlderMatchID {
+		t.Errorf("tester's history = %+v, %v", all, err)
+	}
+	none, err := c.ActivityHistory(ctx, "", 3, "4611686018400000005", "c", bungie.ModeAllPvP, 10)
+	if err != nil || len(none) != 1 {
+		t.Errorf("Halfmoon's history = %+v, %v; want the one lobby they played", none, err)
+	}
+	if acts, err := c.ActivityHistory(ctx, "", 3, "4611686018400000007", "c", bungie.ModeAllPvP, 1); err != nil || len(acts) != 1 || acts[0].ActivityDetails.InstanceID != OlderMatchID {
+		t.Errorf("Mire's history = %+v, %v", acts, err)
+	}
+}

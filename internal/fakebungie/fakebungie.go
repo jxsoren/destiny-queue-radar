@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -162,13 +164,28 @@ func details(id string, l lobby) map[string]any {
 	return map[string]any{"referenceId": l.mapHash, "directorActivityHash": CompetitiveHash, "instanceId": id, "mode": 69, "modes": []int{5, 69}}
 }
 
+// handleHistory lists the lobbies the player was in, newest first, up to count. Each fake
+// player has one character, so the character ID is not checked.
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
+	count, err := strconv.Atoi(r.URL.Query().Get("count"))
+	if err != nil || count < 1 {
+		count = 25
+	}
+	player := r.PathValue("id")
 	acts := []map[string]any{}
-	if r.PathValue("id") == SelfID {
-		for _, id := range []string{LastMatchID, OlderMatchID} {
-			l := s.lobbies[id]
-			acts = append(acts, map[string]any{"period": l.period, "activityDetails": details(id, l)})
+	for _, id := range []string{LastMatchID, OlderMatchID} {
+		l := s.lobbies[id]
+		if len(acts) == count || !slices.ContainsFunc(l.members, func(m member) bool { return m.id == player }) {
+			continue
 		}
+		acts = append(acts, map[string]any{
+			"period":          l.period,
+			"activityDetails": details(id, l),
+			"values": map[string]any{"activityDurationSeconds": map[string]any{
+				"statId": "activityDurationSeconds",
+				"basic":  map[string]any{"value": l.duration.Seconds(), "displayValue": l.duration.String()},
+			}},
+		})
 	}
 	writeOK(w, map[string]any{"activities": acts})
 }
