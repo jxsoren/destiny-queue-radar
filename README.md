@@ -75,6 +75,19 @@ Sign in through the Go server (https://localhost:8443), then open http://localho
 
 `make build` builds the dashboard and then `bin/server` with it embedded. Without a dashboard build, the server serves a placeholder page.
 
+### End-to-end test
+
+Runs the dashboard against `cmd/fakebungie` and an e2e build of the server (`-tags e2e`, which adds a test-only sign-in at `/auth/e2e-login` and polls every 2 seconds; never deploy it).
+
+```bash
+createdb -h /tmp destiny_queue_radar_e2e   # once; the test wipes this database's public schema
+cd web
+npx playwright install chromium            # once
+E2E_DATABASE_URL="postgres:///destiny_queue_radar_e2e?host=/tmp" npm run e2e
+```
+
+`go run ./cmd/fakebungie` on its own lets you run the dashboard without a Bungie API key; change a player with `curl -X POST -d '{"state":"match"}' http://127.0.0.1:9100/fake/players/4611686018400000002/state`.
+
 ## Project layout
 
 ```
