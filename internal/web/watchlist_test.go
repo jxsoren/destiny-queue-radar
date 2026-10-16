@@ -71,6 +71,8 @@ func TestWatchlist_AddValidation(t *testing.T) {
 		{"membershipType": 3, "membershipId": "4611", "source": "search", "note": strings.Repeat("x", maxNoteLen+1)},
 		{"membershipType": 3, "membershipId": "4611", "source": "search", "extra": true},
 		{"membershipType": 999, "membershipId": "4611", "source": "search"},
+		{"membershipType": 10, "membershipId": "4611", "source": "search"},
+		{"membershipType": 254, "membershipId": "4611", "source": "search"},
 		{"membershipType": 3, "membershipId": strings.Repeat("1", 20), "source": "search"},
 	}
 	for i, body := range bad {
@@ -150,6 +152,18 @@ func TestWatchlist_AddVerificationFailures(t *testing.T) {
 	if rec := e.do(t, http.MethodPost, "/api/watchlist", addBody("4611"), cookie); rec.Code != http.StatusBadGateway {
 		t.Errorf("bungie error = %d, want 502", rec.Code)
 	}
+	e.bungie.profileErr = &bungie.APIError{Code: bungie.CodeSystemDisabled, Status: "SystemDisabled"}
+	if rec := e.do(t, http.MethodPost, "/api/watchlist", addBody("4611"), cookie); rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("maintenance = %d, want 503", rec.Code)
+	}
+	e.bungie.profileErr = &bungie.APIError{Code: 36, Status: "ThrottleLimitExceededMinutes", ThrottleSeconds: 30}
+	if rec := e.do(t, http.MethodPost, "/api/watchlist", addBody("4611"), cookie); rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("throttled = %d, want 503", rec.Code)
+	}
+	e.bungie.profileErr = &bungie.APIError{Code: 7, Status: "ParameterParseFailure"}
+	if rec := e.do(t, http.MethodPost, "/api/watchlist", addBody("4611"), cookie); rec.Code != http.StatusBadGateway {
+		t.Errorf("other api error = %d, want 502", rec.Code)
+	}
 	if len(e.store.watch[u.ID]) != 0 {
 		t.Error("player stored despite failed verification")
 	}
@@ -212,5 +226,22 @@ func TestSearch_RateLimited(t *testing.T) {
 	rec := e.do(t, http.MethodGet, "/api/search?q=Nobody%230001", nil, cookie)
 	if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") != "60" {
 		t.Errorf("code = %d Retry-After = %q", rec.Code, rec.Header().Get("Retry-After"))
+	}
+}
+
+func TestWatchlist_AddRejectsMismatchedProfile(t *testing.T) {
+	e := newTestEnv(t)
+	u, cookie := e.login(t, "Guardian#1993")
+	e.addProfile(3, "9999", "Other", 1) // Bungie answers for a different ID than asked
+	e.bungie.profiles["4611"] = e.bungie.profiles["9999"]
+	if rec := e.do(t, http.MethodPost, "/api/watchlist", addBody("4611"), cookie); rec.Code != http.StatusBadGateway {
+		t.Errorf("mismatched id = %d, want 502", rec.Code)
+	}
+	e.addProfile(254, "4611", "Odd", 1) // a type outside the allowlist
+	if rec := e.do(t, http.MethodPost, "/api/watchlist", addBody("4611"), cookie); rec.Code != http.StatusBadGateway {
+		t.Errorf("invalid type in response = %d, want 502", rec.Code)
+	}
+	if len(e.store.watch[u.ID]) != 0 {
+		t.Error("player stored from an unexpected response")
 	}
 }

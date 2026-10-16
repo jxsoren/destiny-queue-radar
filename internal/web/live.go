@@ -91,6 +91,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request, u store.Us
 		return
 	}
 	rc := http.NewResponseController(w)
+	defer rc.SetWriteDeadline(time.Time{}) // don't leave a stale deadline on a keep-alive connection
 	// send writes one frame under a fresh write deadline (unsupported deadlines are ignored)
 	// and flushes it, so a stalled client cannot hold the handler forever.
 	send := func(write func() error) error {
@@ -118,6 +119,8 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request, u store.Us
 		var err error
 		select {
 		case <-r.Context().Done():
+			return
+		case <-s.d.Done: // server shutting down (nil channel: never)
 			return
 		case <-conn.Done():
 			return // dropped for falling behind; the client reconnects and gets a new snapshot

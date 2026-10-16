@@ -72,12 +72,14 @@ var (
 )
 
 type Deps struct {
-	Store         Store
-	Engine        Engine
-	Hub           Hub
-	Bungie        Bungie
-	Tokens        Tokens
-	Matches       Matches
+	Store   Store
+	Engine  Engine
+	Hub     Hub
+	Bungie  Bungie
+	Tokens  Tokens
+	Matches Matches
+	// Done, when closed, ends open live streams (server shutdown). Nil means never.
+	Done          <-chan struct{}
 	OAuthClientID string
 	Log           *slog.Logger
 }

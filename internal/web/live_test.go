@@ -263,3 +263,29 @@ func TestStream_EventBetweenSubscribeAndSnapshotIsDelivered(t *testing.T) {
 		t.Errorf("event published before the snapshot was lost: %+v", upd)
 	}
 }
+
+func TestStream_EndsWhenDepsDoneCloses(t *testing.T) {
+	e := newTestEnv(t)
+	_, cookie := e.login(t, "Guardian#1993")
+	done := make(chan struct{})
+	e.s.d.Done = done
+	srv := httptest.NewServer(e.s)
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resp := openStream(t, ctx, srv, cookie)
+	defer resp.Body.Close()
+	events := readEvents(bufio.NewReader(resp.Body))
+	if snap := next(t, events, true); snap.name != "snapshot" {
+		t.Fatalf("first event = %+v", snap)
+	}
+	close(done)
+	select {
+	case _, ok := <-events:
+		if ok {
+			t.Error("unexpected event after Done closed")
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("stream still open after Done closed")
+	}
+}

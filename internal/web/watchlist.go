@@ -53,14 +53,15 @@ func (s *Server) handleWatchlist(w http.ResponseWriter, r *http.Request, u store
 type addWatchRequest struct {
 	MembershipType int64  `json:"membershipType"`
 	MembershipID   string `json:"membershipId"`
-	BungieName     string `json:"bungieName"`
-	Note           string `json:"note"`
-	Source         string `json:"source"`
+	// BungieName is accepted for compatibility but ignored: identity comes from Bungie.
+	BungieName string `json:"bungieName"`
+	Note       string `json:"note"`
+	Source     string `json:"source"`
 }
 
-// validMembershipTypes are Bungie's platform membership types: Xbox, PSN, Steam, Stadia,
-// Epic, Bungie.net and "all".
-var validMembershipTypes = map[int64]bool{1: true, 2: true, 3: true, 5: true, 6: true, 10: true, 254: true}
+// validMembershipTypes are the Destiny 2 platforms a player can be on: Xbox, PSN, Steam,
+// Stadia and Epic.
+var validMembershipTypes = map[int64]bool{1: true, 2: true, 3: true, 5: true, 6: true}
 
 // handleAddWatch never trusts client-supplied identity: the player row is shared by every
 // user who watches them, so type and name come from Bungie's own answer.
@@ -85,12 +86,15 @@ func (s *Server) handleAddWatch(w http.ResponseWriter, r *http.Request, u store.
 		return
 	}
 	prof, err := s.d.Bungie.GetProfile(r.Context(), req.MembershipType, req.MembershipID)
-	var apiErr *bungie.APIError
-	if bungie.IsNotFound(err) || (errors.As(err, &apiErr) && apiErr.Code != 0) {
+	switch {
+	case bungie.IsNotFound(err):
 		writeError(w, http.StatusNotFound, "player not found")
 		return
-	}
-	if err != nil {
+	case bungie.IsSystemDisabled(err), bungie.IsThrottled(err):
+		s.d.Log.Warn("profile lookup unavailable", "err", err)
+		writeError(w, http.StatusServiceUnavailable, "Bungie API is unavailable")
+		return
+	case err != nil:
 		s.d.Log.Warn("profile lookup failed", "err", err)
 		writeError(w, http.StatusBadGateway, "could not reach Bungie")
 		return
@@ -98,6 +102,11 @@ func (s *Server) handleAddWatch(w http.ResponseWriter, r *http.Request, u store.
 	// Private or missing profile data: keep the (Bungie-confirmed) ID, leave the name empty.
 	ref := store.PlayerRef{MembershipType: req.MembershipType, MembershipID: req.MembershipID}
 	if d := prof.Profile.Data; d != nil {
+		if d.UserInfo.MembershipID != req.MembershipID || !validMembershipTypes[d.UserInfo.MembershipType] {
+			s.d.Log.Warn("profile does not match the request", "asked", req.MembershipID, "got", d.UserInfo.MembershipID)
+			writeError(w, http.StatusBadGateway, "unexpected response from Bungie")
+			return
+		}
 		ref.MembershipType, ref.MembershipID = d.UserInfo.MembershipType, d.UserInfo.MembershipID
 		if n := d.UserInfo.BungieGlobalDisplayName; n != "" {
 			ref.BungieName = bungie.FormatBungieName(n, d.UserInfo.BungieGlobalDisplayNameCode)

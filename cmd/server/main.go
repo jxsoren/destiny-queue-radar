@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -79,6 +78,8 @@ func run(log *slog.Logger) error {
 	tokens := auth.NewTokenManager(st, box, cfg.OAuthClientID, cfg.OAuthClientSecret, cfg.BungieBaseURL, nil)
 	h := hub.New(32)
 	eng := engine.New(engine.DefaultConfig(), st, client, classifier.New(man), h, log)
+	// Closed when Shutdown begins, so open SSE streams end while normal requests drain.
+	streamsDone := make(chan struct{})
 	handler := web.New(web.Deps{
 		Store:         st,
 		Engine:        eng,
@@ -87,6 +88,7 @@ func run(log *slog.Logger) error {
 		Tokens:        tokens,
 		Matches:       matches.New(client, client, stats, man),
 		OAuthClientID: cfg.OAuthClientID,
+		Done:          streamsDone,
 		Log:           log,
 	})
 
@@ -95,9 +97,8 @@ func run(log *slog.Logger) error {
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
-		// Request contexts end on shutdown, so open SSE streams close promptly.
-		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
+	srv.RegisterOnShutdown(func() { close(streamsDone) })
 
 	var wg sync.WaitGroup
 	wg.Add(2)
