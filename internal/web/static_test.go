@@ -32,6 +32,16 @@ func TestStatic_RootServesIndexUncached(t *testing.T) {
 	if got := rec.Header().Get("Content-Type"); !strings.HasPrefix(got, "text/html") {
 		t.Errorf("Content-Type = %q", got)
 	}
+	want := map[string]string{
+		"X-Frame-Options":         "DENY",
+		"Referrer-Policy":         "same-origin",
+		"Content-Security-Policy": "default-src 'self'; img-src 'self' https://www.bungie.net data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+	}
+	for k, v := range want {
+		if got := rec.Header().Get(k); got != v {
+			t.Errorf("%s = %q, want %q", k, got, v)
+		}
+	}
 }
 
 func TestStatic_HistoryFallback(t *testing.T) {

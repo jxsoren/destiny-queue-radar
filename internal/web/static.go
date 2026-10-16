@@ -44,6 +44,12 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	s.serveIndex(w, r)
 }
 
+// contentSecurityPolicy fits the SPA: scripts and fonts are same-origin bundles, emblems come from
+// bungie.net (or are inline data: URIs in the landing demo), Vite inlines small fonts as data: URIs,
+// and React/Tailwind set inline styles.
+const contentSecurityPolicy = "default-src 'self'; img-src 'self' https://www.bungie.net data:; " +
+	"font-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
 func (s *Server) serveIndex(w http.ResponseWriter, r *http.Request) {
 	b, err := fs.ReadFile(s.d.Static, "index.html")
 	if err != nil {
@@ -54,6 +60,9 @@ func (s *Server) serveIndex(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Type", "text/html; charset=utf-8")
 	h.Set("Cache-Control", cacheRevalidate)
 	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("X-Frame-Options", "DENY")
+	h.Set("Referrer-Policy", "same-origin")
+	h.Set("Content-Security-Policy", contentSecurityPolicy)
 	w.Write(b)
 }
 
