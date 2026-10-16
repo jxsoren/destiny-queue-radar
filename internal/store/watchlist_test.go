@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func mustUser(t *testing.T, s *Store, id string) User {
@@ -46,7 +49,7 @@ func TestAddWatch_ReAddUpdatesNoteWithoutDuplicating(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	u := mustUser(t, s, "u1")
-	s.AddWatch(ctx, u.ID, ref("p1"), "old", SourceSearch)
+	must(t, s.AddWatch(ctx, u.ID, ref("p1"), "old", SourceSearch))
 	if err := s.AddWatch(ctx, u.ID, ref("p1"), "new", SourceSearch); err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +88,7 @@ func TestUpdateNoteAndRemoveWatch(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	u := mustUser(t, s, "u1")
-	s.AddWatch(ctx, u.ID, ref("p1"), "", SourceSearch)
+	must(t, s.AddWatch(ctx, u.ID, ref("p1"), "", SourceSearch))
 
 	if err := s.UpdateNote(ctx, u.ID, "p1", "wallhacks"); err != nil {
 		t.Fatal(err)
@@ -113,10 +116,10 @@ func TestWatchedByAndWatchersOf(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	a, b, c := mustUser(t, s, "a"), mustUser(t, s, "b"), mustUser(t, s, "c")
-	s.AddWatch(ctx, a.ID, ref("p1"), "", SourceSearch)
-	s.AddWatch(ctx, b.ID, ref("p1"), "", SourceSearch)
-	s.AddWatch(ctx, b.ID, ref("p2"), "", SourceSearch)
-	s.AddWatch(ctx, c.ID, ref("p3"), "", SourceSearch)
+	must(t, s.AddWatch(ctx, a.ID, ref("p1"), "", SourceSearch))
+	must(t, s.AddWatch(ctx, b.ID, ref("p1"), "", SourceSearch))
+	must(t, s.AddWatch(ctx, b.ID, ref("p2"), "", SourceSearch))
+	must(t, s.AddWatch(ctx, c.ID, ref("p3"), "", SourceSearch))
 
 	players, err := s.WatchedBy(ctx, []int64{a.ID, b.ID})
 	if err != nil {
@@ -135,5 +138,59 @@ func TestWatchedByAndWatchersOf(t *testing.T) {
 	}
 	if len(watchers) != 2 || watchers[0] != a.ID || watchers[1] != b.ID {
 		t.Errorf("WatchersOf(p1) = %v", watchers)
+	}
+}
+
+func TestAddWatch_CapHoldsUnderConcurrency(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	u := mustUser(t, s, "u1")
+	for i := 0; i < MaxWatchlist-1; i++ {
+		must(t, s.AddWatch(ctx, u.ID, ref(fmt.Sprintf("p%02d", i)), "", SourceSearch))
+	}
+	const n = 10
+	// Pre-open pool connections so the goroutines truly overlap instead of queueing on dialing.
+	var conns []*pgxpool.Conn
+	for i := 0; i < int(s.pool.Config().MaxConns) && i < n; i++ {
+		c, err := s.pool.Acquire(ctx)
+		must(t, err)
+		conns = append(conns, c)
+	}
+	for _, c := range conns {
+		c.Release()
+	}
+	errs := make([]error, n)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			errs[i] = s.AddWatch(ctx, u.ID, ref(fmt.Sprintf("new%02d", i)), "", SourceSearch)
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	var ok, full int
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			ok++
+		case errors.Is(err, ErrWatchlistFull):
+			full++
+		default:
+			t.Errorf("unexpected error: %v", err)
+		}
+	}
+	if ok != 1 || full != n-1 {
+		t.Errorf("ok=%d full=%d, want 1 and %d", ok, full, n-1)
+	}
+	list, err := s.Watchlist(ctx, u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != MaxWatchlist {
+		t.Errorf("len(list) = %d, want %d", len(list), MaxWatchlist)
 	}
 }

@@ -92,6 +92,8 @@ func (s *Store) AddWatch(ctx context.Context, userID int64, p PlayerRef, note, s
 		ON CONFLICT (membership_id) DO UPDATE SET
 			membership_type = EXCLUDED.membership_type,
 			bungie_name = COALESCE(NULLIF(EXCLUDED.bungie_name, ''), players.bungie_name),
+			-- Touching updated_at stops a concurrent DeleteUnwatchedPlayers from removing this
+			-- player before the watch entry below is inserted.
 			updated_at = now()`,
 		p.MembershipID, p.MembershipType, p.BungieName); err != nil {
 		return fmt.Errorf("store: upsert player: %w", err)
@@ -102,7 +104,10 @@ func (s *Store) AddWatch(ctx context.Context, userID int64, p PlayerRef, note, s
 		userID, p.MembershipID, note, source); err != nil {
 		return fmt.Errorf("store: add watch: %w", err)
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("store: commit watch: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) UpdateNote(ctx context.Context, userID int64, membershipID, note string) error {
@@ -119,7 +124,8 @@ func (s *Store) UpdateNote(ctx context.Context, userID int64, membershipID, note
 }
 
 // RemoveWatch takes a player off the user's watchlist. The player's updated_at is touched so
-// DeleteUnwatchedPlayers measures its grace period from the last removal.
+// DeleteUnwatchedPlayers measures its grace period from the player's last change (this removal
+// or any later poll result).
 func (s *Store) RemoveWatch(ctx context.Context, userID int64, membershipID string) error {
 	tag, err := s.pool.Exec(ctx, `
 		WITH removed AS (

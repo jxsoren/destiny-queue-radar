@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"sync"
 	"testing"
 )
 
@@ -40,5 +41,29 @@ func TestUpsertUser_InsertsThenUpdatesName(t *testing.T) {
 	}
 	if u2.BungieName != "Renamed#1993" || u2.BungieMembershipID != "4611" {
 		t.Errorf("user = %+v", u2)
+	}
+}
+
+func TestOpen_ConcurrentStartupIsSafe(t *testing.T) {
+	cfg := testConfig(t)
+	ctx := context.Background()
+	const n = 4
+	stores := make([]*Store, n)
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			stores[i], errs[i] = open(ctx, cfg.Copy())
+		}(i)
+	}
+	wg.Wait()
+	for i := 0; i < n; i++ {
+		if errs[i] != nil {
+			t.Errorf("open #%d: %v", i, errs[i])
+			continue
+		}
+		stores[i].Close()
 	}
 }

@@ -13,7 +13,7 @@ func TestSavePollSuccess_StoresStatusAndEmblems(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	u := mustUser(t, s, "u1")
-	s.AddWatch(ctx, u.ID, ref("p1"), "", SourceSearch)
+	must(t, s.AddWatch(ctx, u.ID, ref("p1"), "", SourceSearch))
 
 	at := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
 	started := at.Add(-4 * time.Minute)
@@ -46,15 +46,18 @@ func TestSavePollFailure_OnlyTouchesLastPolled(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	u := mustUser(t, s, "u1")
-	s.AddWatch(ctx, u.ID, ref("p1"), "", SourceSearch)
+	must(t, s.AddWatch(ctx, u.ID, ref("p1"), "", SourceSearch))
 	ok := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
-	s.SavePollSuccess(ctx, "p1", status.Status{State: status.NotInPvP}, "", "", ok)
+	must(t, s.SavePollSuccess(ctx, "p1", status.Status{State: status.NotInPvP}, "", "", ok))
 
 	failed := ok.Add(time.Minute)
 	if err := s.SavePollFailure(ctx, "p1", failed); err != nil {
 		t.Fatal(err)
 	}
 	p, _ := s.Player(ctx, "p1")
+	if p.LastPolledAt == nil || p.LastSuccessAt == nil {
+		t.Fatalf("timestamps = %v, %v", p.LastPolledAt, p.LastSuccessAt)
+	}
 	if !p.LastPolledAt.Equal(failed) || !p.LastSuccessAt.Equal(ok) || p.Status.State != status.NotInPvP {
 		t.Errorf("player = %+v", p)
 	}
@@ -78,9 +81,9 @@ func TestDeleteUnwatchedPlayers(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	u := mustUser(t, s, "u1")
-	s.AddWatch(ctx, u.ID, ref("kept"), "", SourceSearch)
-	s.AddWatch(ctx, u.ID, ref("dropped"), "", SourceSearch)
-	s.RemoveWatch(ctx, u.ID, "dropped")
+	must(t, s.AddWatch(ctx, u.ID, ref("kept"), "", SourceSearch))
+	must(t, s.AddWatch(ctx, u.ID, ref("dropped"), "", SourceSearch))
+	must(t, s.RemoveWatch(ctx, u.ID, "dropped"))
 
 	// A cutoff in the past keeps the recently unwatched player.
 	if n, err := s.DeleteUnwatchedPlayers(ctx, time.Now().Add(-time.Hour)); err != nil || n != 0 {
@@ -96,5 +99,19 @@ func TestDeleteUnwatchedPlayers(t *testing.T) {
 	}
 	if _, err := s.Player(ctx, "kept"); err != nil {
 		t.Errorf("kept missing: %v", err)
+	}
+}
+
+func TestPlayer_NeverPolled(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	u := mustUser(t, s, "u1")
+	must(t, s.AddWatch(ctx, u.ID, ref("p1"), "", SourceSearch))
+	p, err := s.Player(ctx, "p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Status.State != status.Unknown || p.LastPolledAt != nil || p.LastSuccessAt != nil {
+		t.Errorf("player = %+v", p)
 	}
 }

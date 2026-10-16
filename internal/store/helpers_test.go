@@ -48,3 +48,10 @@ func openTestStore(t *testing.T) *Store {
 	t.Cleanup(s.Close)
 	return s
 }
+
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
