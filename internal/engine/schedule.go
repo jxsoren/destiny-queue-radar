@@ -4,6 +4,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/jxsoren/destiny-queue-radar/internal/status"
 	"github.com/jxsoren/destiny-queue-radar/internal/store"
 )
 
@@ -30,6 +31,9 @@ func pickDue(entries map[string]*entry, now time.Time, interval time.Duration, l
 			continue
 		}
 		manual := !e.manualAt.IsZero()
+		if !manual && e.player.Status.State == status.NotFound {
+			continue // terminal: only a manual refresh re-checks it
+		}
 		if !manual && now.Sub(e.lastPolled) < interval {
 			continue
 		}

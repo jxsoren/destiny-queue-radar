@@ -4,6 +4,9 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/jxsoren/destiny-queue-radar/internal/status"
+	"github.com/jxsoren/destiny-queue-radar/internal/store"
 )
 
 func TestPickDue(t *testing.T) {
@@ -41,5 +44,18 @@ func TestPickDue_TiesBreakOnID(t *testing.T) {
 		if got := pickDue(entries, now, time.Minute, 3); !slices.Equal(got, []string{"a", "b", "c"}) {
 			t.Fatalf("got %v", got)
 		}
+	}
+}
+
+func TestPickDue_NotFoundIsTerminalUnlessManual(t *testing.T) {
+	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	gone := store.Player{Status: status.Status{State: status.NotFound}}
+	entries := map[string]*entry{"gone": {player: gone}}
+	if got := pickDue(entries, now, time.Minute, 5); len(got) != 0 {
+		t.Errorf("picked %v, want none", got)
+	}
+	entries["gone"].manualAt = now
+	if got := pickDue(entries, now, time.Minute, 5); !slices.Equal(got, []string{"gone"}) {
+		t.Errorf("manual refresh: picked %v", got)
 	}
 }

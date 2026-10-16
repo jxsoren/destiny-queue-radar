@@ -619,3 +619,84 @@ func TestEngine_WorkerConcurrencyCap(t *testing.T) {
 		t.Errorf("max concurrent = %d, want <= 2", m)
 	}
 }
+
+// --- final review tests ---
+
+func TestDispatch_DegradedSlowsPolling(t *testing.T) {
+	for _, tc := range []struct {
+		state APIState
+		want  int
+	}{{APIOK, 8}, {APIDegraded, 2}} {
+		cfg := testConfig()
+		cfg.Workers = 8
+		e := New(cfg, newFakeStore(), newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+		for i := 0; i < 8; i++ {
+			id := string(rune('a' + i))
+			e.entries[id] = &entry{player: player(id)}
+		}
+		e.apiState = tc.state
+		jobs := make(chan string, cfg.Workers)
+		e.dispatch(jobs)
+		if len(jobs) != tc.want {
+			t.Errorf("%s: dispatched %d, want %d", tc.state, len(jobs), tc.want)
+		}
+	}
+}
+
+func TestRecordHealth_ThrottledSystemDisabledIsDown(t *testing.T) {
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	e.recordHealth(time.Now(), &bungie.APIError{Code: bungie.CodeSystemDisabled, ThrottleSeconds: 5})
+	if e.APIState() != APIDown {
+		t.Errorf("state = %s, want down", e.APIState())
+	}
+}
+
+func TestRecordHealth_ThrottledErrorLetsStaleDegradedDecay(t *testing.T) {
+	h := &fakeHub{}
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), always(status.Status{}), h, quietLog())
+	t0 := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	boom := &bungie.TransportError{Path: "/x", Err: errors.New("reset")}
+	for _, err := range []error{boom, boom, boom, nil, boom, boom} {
+		e.recordHealth(t0, err)
+	}
+	if e.APIState() != APIDegraded {
+		t.Fatalf("state = %s, want degraded", e.APIState())
+	}
+	e.recordHealth(t0.Add(2*time.Minute), &bungie.APIError{Code: 36, ThrottleSeconds: 5})
+	if e.APIState() != APIOK {
+		t.Fatalf("state = %s, want ok after samples aged out", e.APIState())
+	}
+	evs := h.broadcastEvents()
+	if u, ok := evs[len(evs)-1].Data.(APIStatusUpdate); !ok || u.Bungie != APIOK {
+		t.Errorf("last broadcast = %+v, want ok", evs[len(evs)-1])
+	}
+}
+
+func TestDispatch_EmptyProbeDoesNotConsumeSlot(t *testing.T) {
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), always(status.Status{}), &fakeHub{}, quietLog())
+	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	e.now = func() time.Time { return now }
+	e.apiState = APIDown
+	old := now.Add(-2 * time.Minute)
+	e.lastProbe = old
+	e.dispatch(make(chan string, 5))
+	if !e.lastProbe.Equal(old) {
+		t.Errorf("lastProbe = %v, want unchanged", e.lastProbe)
+	}
+}
+
+func TestEngine_NotFoundPlayerIsPolledOnce(t *testing.T) {
+	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
+	st.watch(1, player("gone"))
+	pr.errs["gone"] = &bungie.APIError{Code: bungie.CodeAccountNotFound}
+	cfg := testConfig()
+	cfg.Interval = 10 * time.Millisecond
+	e := New(cfg, st, pr, always(status.Status{}), h, quietLog())
+	run(t, e)
+
+	eventually(t, "polled", func() bool { return st.count(st.saves, "gone") == 1 })
+	time.Sleep(100 * time.Millisecond) // ten intervals
+	if n := pr.callCount("gone"); n != 1 {
+		t.Errorf("calls = %d, want 1 (NOT_FOUND is terminal)", n)
+	}
+}

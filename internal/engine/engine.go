@@ -227,7 +227,13 @@ func (e *Engine) entryLocked(p store.Player) *entry {
 		}
 		e.entries[p.MembershipID] = en
 	}
+	// The engine is the only writer of Status, so keep what it last learned; the snapshot p
+	// may predate a poll that completed meanwhile.
+	prevStatus := en.player.Status
 	en.player = p
+	if ok {
+		en.player.Status = prevStatus
+	}
 	return en
 }
 
@@ -256,15 +262,23 @@ func (e *Engine) dispatch(jobs chan<- string) {
 	e.mu.Lock()
 	now := e.now()
 	limit := cap(jobs) - len(jobs)
-	if e.apiState == APIDown {
+	probing := false
+	switch e.apiState {
+	case APIDown:
 		if now.Sub(e.lastProbe) < e.cfg.DownProbe {
 			limit = 0
 		} else {
 			limit = min(limit, 1)
-			e.lastProbe = now
+			probing = true
 		}
+	case APIDegraded:
+		// Spec 7.2: slow polling down while Bungie is struggling.
+		limit = min(limit, max(1, cap(jobs)/4))
 	}
 	ids := pickDue(e.entries, now, e.cfg.Interval, limit)
+	if probing && len(ids) > 0 {
+		e.lastProbe = now // an empty probe must not consume the slot
+	}
 	for _, id := range ids {
 		e.entries[id].inFlight = true
 		e.entries[id].manualAt = time.Time{}
@@ -325,6 +339,11 @@ func (e *Engine) poll(ctx context.Context, id string) {
 		}
 		return
 	}
+	e.mu.Lock()
+	if en, ok := e.entries[id]; ok {
+		en.player.Status = next // lets the scheduler see terminal states such as NOT_FOUND
+	}
+	e.mu.Unlock()
 	if !next.Equal(prev.Status) {
 		e.publish(ctx, id, next, now)
 	}
@@ -335,6 +354,8 @@ func (e *Engine) finish(id string) {
 	defer e.mu.Unlock()
 	if en, ok := e.entries[id]; ok {
 		en.inFlight = false
+		// lastPolled advances even if the poll ended early on a store error, so that player
+		// also waits a full Interval.
 		// lastPolled is when the poll completed, not started. This is deliberate: under load the
 		// interval stretches slightly. A failed poll also waits a full Interval before retrying.
 		en.lastPolled = e.now()
@@ -358,15 +379,17 @@ func (e *Engine) publish(ctx context.Context, id string, st status.Status, at ti
 func (e *Engine) recordHealth(at time.Time, err error) {
 	// Throttling means we are rate-limited, not that Bungie is unhealthy; not-found is a
 	// successful answer about a missing player.
-	if bungie.IsThrottled(err) {
-		return
-	}
+	throttled := bungie.IsThrottled(err) && !bungie.IsSystemDisabled(err)
 	failed := err != nil && !bungie.IsNotFound(err)
 	// Hold the lock across the Broadcast so concurrent workers cannot deliver state changes out
 	// of order and leave clients on a stale state. hub.Broadcast never blocks or calls back.
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.health.record(at, failed, bungie.IsSystemDisabled(err))
+	if !throttled {
+		e.health.record(at, failed, bungie.IsSystemDisabled(err))
+	}
+	// Even when throttled (no sample recorded) re-evaluate, so a stale degraded state decays
+	// once its samples age out of the window.
 	state := e.health.state(at)
 	if state == e.apiState {
 		return

@@ -112,6 +112,8 @@ func (h *Hub) deliverLocked(userID int64, c *Conn, ev Event) {
 }
 
 // ActiveUsers returns users with an open connection or one closed less than grace ago, ascending.
+// It also prunes disconnected users older than the caller's grace, so only one caller (the
+// engine) should use it.
 func (h *Hub) ActiveUsers(grace time.Duration) []int64 {
 	h.mu.Lock()
 	defer h.mu.Unlock()

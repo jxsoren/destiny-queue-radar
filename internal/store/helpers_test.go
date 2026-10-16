@@ -16,6 +16,9 @@ func testConfig(t *testing.T) *pgxpool.Config {
 	t.Helper()
 	url := os.Getenv("TEST_DATABASE_URL")
 	if url == "" {
+		if os.Getenv("CI") == "true" {
+			t.Fatal("TEST_DATABASE_URL not set in CI; refusing to skip the Postgres integration suite")
+		}
 		t.Skip("TEST_DATABASE_URL not set; skipping Postgres integration test")
 	}
 	ctx := context.Background()
