@@ -96,6 +96,21 @@ describe('Board', () => {
     }
   });
 
+  test('focus falls back to MANAGE/DONE when the last card is removed in manage mode', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { user } = setup();
+      snapshot();
+      await user.click(screen.getByRole('button', { name: 'MANAGE' }));
+      await user.click(screen.getByRole('button', { name: 'Stop watching Vex#1111' }));
+      await act(() => vi.advanceTimersByTimeAsync(5_000));
+      expect(screen.queryByRole('button', { name: 'UNDO' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'DONE' })).toHaveFocus();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('pb-40 also applies while a removal error is showing', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {

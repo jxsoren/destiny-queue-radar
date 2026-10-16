@@ -12,8 +12,20 @@ test('down and degraded banners', () => {
 });
 
 test('too many tabs notice', () => {
-  const { rerender, container } = render(<StreamNotice show />);
+  const { rerender } = render(<StreamNotice show />);
   expect(screen.getByRole('status')).toHaveTextContent('TOO MANY OPEN TABS');
   rerender(<StreamNotice show={false} />);
-  expect(container).toBeEmptyDOMElement();
+  expect(screen.getByRole('status')).toBeEmptyDOMElement();
+});
+
+test('the notice live region stays mounted so retries do not re-announce', () => {
+  const { rerender } = render(<StreamNotice show={false} />);
+  const region = screen.getByRole('status');
+  expect(region).toBeEmptyDOMElement();
+  rerender(<StreamNotice show />);
+  expect(screen.getByRole('status')).toBe(region);
+  expect(region).toHaveTextContent('TOO MANY OPEN TABS');
+  rerender(<StreamNotice show={false} />);
+  expect(screen.getByRole('status')).toBe(region);
+  expect(region).toBeEmptyDOMElement();
 });

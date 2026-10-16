@@ -12,10 +12,10 @@ export function ApiBanner({ status }: { status: ApiStatus }) {
 
 /** Shown while the live stream is refused (most likely the per-user stream limit). */
 export function StreamNotice({ show }: { show: boolean }) {
-  if (!show) return null;
+  // The live region stays mounted and only its text toggles, so a retry loop does not re-announce.
   return (
-    <p role="status" className="tele bg-raised px-4 py-2 text-ink">
-      TOO MANY OPEN TABS · LIVE UPDATES PAUSED · RETRYING
+    <p role="status" className={show ? 'tele bg-raised px-4 py-2 text-ink' : 'sr-only'}>
+      {show ? 'TOO MANY OPEN TABS · LIVE UPDATES PAUSED · RETRYING' : ''}
     </p>
   );
 }

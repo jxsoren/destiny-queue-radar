@@ -4,7 +4,7 @@ import '../fonts';
 import '../styles/index.css';
 import { Landing } from './Landing';
 
-// Dev-only: renders the landing page without a backend so inspect.mjs can measure it.
+// Dev-only preview of the landing page without a backend.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Landing />

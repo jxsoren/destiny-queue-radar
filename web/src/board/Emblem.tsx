@@ -2,10 +2,11 @@ import { useState } from 'react';
 
 const BUNGIE = 'https://www.bungie.net';
 
-/** Bungie paths are relative to bungie.net; anything else (demo data URIs) is used as is. */
+/** Bungie paths are relative to bungie.net; data:image/ URIs (the demo's drawn emblems) pass; nothing else is loaded. */
 export function emblemUrl(path: string): string | null {
-  if (!path) return null;
-  return path.startsWith('/') ? BUNGIE + path : path;
+  if (path.startsWith('/') && !path.startsWith('//')) return BUNGIE + path;
+  if (path.startsWith('data:image/')) return path;
+  return null;
 }
 
 /** The player's emblem icon (spec §1: an emblem next to every name). Remount with key={path}. */

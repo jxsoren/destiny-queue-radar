@@ -68,7 +68,8 @@ export function Board({ onSignedOut, client = defaultApi, stream }: BoardProps) 
     const root = rootRef.current;
     const target =
       root?.querySelector<HTMLElement>('button[aria-keyshortcuts="/"]') ??
-      root?.querySelector<HTMLElement>('button[aria-label^="Stop watching"]');
+      root?.querySelector<HTMLElement>('button[aria-label^="Stop watching"]') ??
+      root?.querySelector<HTMLElement>('[data-focus-fallback]');
     target?.focus();
   }, [removal.pending]);
 

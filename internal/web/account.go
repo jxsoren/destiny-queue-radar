@@ -7,7 +7,8 @@ import (
 	"github.com/jxsoren/destiny-queue-radar/internal/store"
 )
 
-// handleIndex is a placeholder until the frontend (Plan 3) is served from here.
+// handleIndex is the fallback root page when no Static handler is configured: a minimal
+// notice with a sign-in link.
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(`<!doctype html><title>Destiny Queue Radar</title>` +
