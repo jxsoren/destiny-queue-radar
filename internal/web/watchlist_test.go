@@ -1,10 +1,12 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jxsoren/destiny-queue-radar/internal/bungie"
 	"github.com/jxsoren/destiny-queue-radar/internal/status"
@@ -283,5 +285,49 @@ func TestSearch_EmblemLookupUsesNoExtraLookupBudget(t *testing.T) {
 		if rec := e.do(t, http.MethodGet, "/api/search?q=Ghost%230880", nil, cookie); rec.Code != http.StatusOK {
 			t.Fatalf("search %d = %d, want 200 (one lookup per search)", i, rec.Code)
 		}
+	}
+	rec := e.do(t, http.MethodGet, "/api/search?q=Ghost%230880", nil, cookie)
+	if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") == "" {
+		t.Errorf("search 31 = %d retry-after %q, want 429 with Retry-After", rec.Code, rec.Header().Get("Retry-After"))
+	}
+}
+
+// hangingProfiles blocks GetProfile until its context ends.
+type hangingProfiles struct{ *fakeBungie }
+
+func (h hangingProfiles) GetProfile(ctx context.Context, _ int64, _ string) (*bungie.Profile, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func TestSearch_SlowProfileLookupIsBounded(t *testing.T) {
+	old := searchEmblemTimeout
+	searchEmblemTimeout = 20 * time.Millisecond
+	defer func() { searchEmblemTimeout = old }()
+	e := newTestEnv(t)
+	_, cookie := e.login(t, "Guardian#1993")
+	e.bungie.cards["Ghost#0880"] = bungie.UserInfoCard{MembershipType: 3, MembershipID: "777", BungieGlobalDisplayName: "Ghost", BungieGlobalDisplayNameCode: 880}
+	e.s.d.Bungie = hangingProfiles{e.bungie}
+
+	start := time.Now()
+	rec := e.do(t, http.MethodGet, "/api/search?q=Ghost%230880", nil, cookie)
+	if took := time.Since(start); took > time.Second {
+		t.Errorf("search took %v, want it bounded by the emblem timeout", took)
+	}
+	if rec.Code != http.StatusOK || decode[searchResultJSON](t, rec).EmblemPath != "" {
+		t.Errorf("search = %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestSearch_ProfileWithoutCharactersHasNoEmblem(t *testing.T) {
+	e := newTestEnv(t)
+	_, cookie := e.login(t, "Guardian#1993")
+	e.bungie.cards["Ghost#0880"] = bungie.UserInfoCard{MembershipType: 3, MembershipID: "777", BungieGlobalDisplayName: "Ghost", BungieGlobalDisplayNameCode: 880}
+	e.addProfile(3, "777", "Ghost", 880)
+	e.bungie.profiles["777"].CharacterActivities.Data = map[string]bungie.CharacterActivities{"c1": {}}
+
+	rec := e.do(t, http.MethodGet, "/api/search?q=Ghost%230880", nil, cookie)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"emblemPath":""`) {
+		t.Errorf("search = %d %s", rec.Code, rec.Body)
 	}
 }

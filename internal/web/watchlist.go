@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -134,6 +135,10 @@ func (s *Server) handleRemoveWatch(w http.ResponseWriter, r *http.Request, u sto
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// searchEmblemTimeout bounds the optional emblem lookup so a slow profile never delays a search.
+// It is a variable only so tests can shorten it.
+var searchEmblemTimeout = 3 * time.Second
+
 type searchResultJSON struct {
 	MembershipType int64  `json:"membershipType"`
 	MembershipID   string `json:"membershipId"`
@@ -166,9 +171,11 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, u store.Us
 	}
 	// The emblem is a nicety: a failed profile lookup still answers the search.
 	var emblem string
-	if prof, err := s.d.Bungie.GetProfile(r.Context(), card.MembershipType, card.MembershipID); err == nil {
+	pctx, cancel := context.WithTimeout(r.Context(), searchEmblemTimeout)
+	defer cancel()
+	if prof, err := s.d.Bungie.GetProfile(pctx, card.MembershipType, card.MembershipID); err == nil {
 		emblem, _ = prof.ActiveEmblem()
-	} else if !bungie.IsNotFound(err) {
+	} else if !bungie.IsNotFound(err) && !errors.Is(err, context.DeadlineExceeded) {
 		s.d.Log.Warn("search emblem lookup failed", "err", err)
 	}
 	writeJSON(w, http.StatusOK, searchResultJSON{MembershipType: card.MembershipType, MembershipID: card.MembershipID,
