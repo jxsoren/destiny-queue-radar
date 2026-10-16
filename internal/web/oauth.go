@@ -81,23 +81,30 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, r, err)
 		return
 	}
-	// Rotate: a new sign-in invalidates any session the browser already had.
+	if err := s.startSession(w, r, u.ID); err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// startSession signs the browser in as userID. Any session the browser already had is ended
+// first (rotation), then a new session cookie is set.
+func (s *Server) startSession(w http.ResponseWriter, r *http.Request, userID int64) error {
+	ctx := r.Context()
 	if old, err := r.Cookie(auth.SessionCookie); err == nil && old.Value != "" {
 		if err := s.d.Store.DeleteSession(ctx, auth.HashToken(old.Value)); err != nil {
-			s.internal(w, r, err)
-			return
+			return err
 		}
 	}
 	session, err := auth.NewToken()
 	if err != nil {
-		s.internal(w, r, err)
-		return
+		return err
 	}
 	expires := s.now().Add(auth.SessionTTL)
-	if err := s.d.Store.CreateSession(ctx, auth.HashToken(session), u.ID, expires); err != nil {
-		s.internal(w, r, err)
-		return
+	if err := s.d.Store.CreateSession(ctx, auth.HashToken(session), userID, expires); err != nil {
+		return err
 	}
 	http.SetCookie(w, auth.SessionCookieFor(session, expires))
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	return nil
 }

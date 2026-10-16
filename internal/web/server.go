@@ -115,6 +115,9 @@ func New(d Deps) *Server {
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
 
+// extraRoutes lets build-tagged files (e2e_signin.go) add routes. Empty in release builds.
+var extraRoutes []func(*Server)
+
 func (s *Server) routes() {
 	if s.d.Static != nil {
 		s.mux.HandleFunc("GET /", s.handleStatic)
@@ -134,6 +137,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/stream", s.authed(s.handleStream))
 	s.mux.HandleFunc("GET /api/matches/recent", s.authed(s.handleRecentMatches))
 	s.mux.HandleFunc("GET /api/matches/{instanceId}", s.authed(s.handleMatch))
+	for _, add := range extraRoutes {
+		add(s)
+	}
 }
 
 type userHandler func(w http.ResponseWriter, r *http.Request, u store.User)
