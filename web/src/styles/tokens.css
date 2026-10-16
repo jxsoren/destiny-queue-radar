@@ -1,0 +1,16 @@
+:root {
+  --ground: #0e0e0e;
+  --surface: #151515;
+  --raised: #1d1d1d;
+  --line: #2c2c2c;
+  --ink: #eaeaea;
+  --ink-dim: #9b9b9b;
+  --ink-stale: #b3ad8c;
+  --accent: #ff2a2a;
+  --backdrop: rgba(14, 14, 14, 0.86);
+  --scanline: rgba(0, 0, 0, 0.18);
+  --font-display: 'Archivo Black', 'Arial Black', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-ui: 'Inter', system-ui, sans-serif;
+  color-scheme: dark;
+}

@@ -1,0 +1,73 @@
+@import './tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    background: var(--ground);
+    color: var(--ink);
+  }
+  body {
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--accent);
+    color: var(--ground);
+  }
+}
+
+@layer components {
+  /* Micro-typography: data, labels, telemetry (brutalist §3.2). */
+  .tele {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.3;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  /* Macro-typography: wordmark and big numbers (brutalist §3.1). */
+  .macro {
+    font-family: var(--font-display);
+    line-height: 0.85;
+    letter-spacing: -0.05em;
+    text-transform: uppercase;
+  }
+  /* Static CRT scanlines over the app shell only (brutalist §7); never on the landing page. */
+  .scanlines::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--scanline) 2px, var(--scanline) 4px);
+  }
+  /* A card entering a column (spec §3.5). */
+  .card-enter {
+    animation: card-in 180ms ease-out;
+  }
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-enter {
+    animation: none;
+  }
+}

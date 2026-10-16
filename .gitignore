@@ -17,3 +17,7 @@ testdata/probe/
 
 # Local TLS certificates (mkcert)
 certs/
+
+# Frontend dependencies and build output (embedded build lands in internal/webui/dist/app)
+web/node_modules/
+internal/webui/dist/app/
