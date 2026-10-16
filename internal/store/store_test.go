@@ -1,0 +1,44 @@
+package store
+
+import (
+	"context"
+	"testing"
+)
+
+func TestOpen_MigrationsAreIdempotent(t *testing.T) {
+	cfg := testConfig(t)
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		s, err := open(ctx, cfg.Copy())
+		if err != nil {
+			t.Fatalf("open #%d: %v", i+1, err)
+		}
+		var n int
+		if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 1 {
+			t.Errorf("open #%d: %d migrations recorded, want 1", i+1, n)
+		}
+		s.Close()
+	}
+}
+
+func TestUpsertUser_InsertsThenUpdatesName(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	u1, err := s.UpsertUser(ctx, "4611", "Guardian#1993")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u2, err := s.UpsertUser(ctx, "4611", "Renamed#1993")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u1.ID == 0 || u1.ID != u2.ID {
+		t.Errorf("ids = %d, %d; want same non-zero id", u1.ID, u2.ID)
+	}
+	if u2.BungieName != "Renamed#1993" || u2.BungieMembershipID != "4611" {
+		t.Errorf("user = %+v", u2)
+	}
+}
