@@ -10,6 +10,15 @@ export interface UseBoardOptions {
   client?: Pick<Api, 'me' | 'watchlist'>;
 }
 
+/** Parses a frame's JSON; a malformed (or null) frame is skipped rather than thrown. */
+function parse<T>(e: MessageEvent<string>): T | null {
+  try {
+    return (JSON.parse(e.data) as T | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The live board (spec §6). The browser's EventSource reconnects by itself after a network
  * error and every reconnect starts with a snapshot. EventSource cannot see HTTP status codes,
@@ -66,16 +75,20 @@ export function useBoard({ onSignedOut, stream = browserStream, client = default
       const es = stream('/api/stream');
       source = es;
       es.addEventListener('snapshot', (e) => {
+        const snapshot = parse<Snapshot>(e);
+        if (!snapshot) return;
         gotSnapshot = true;
         attempt = 0;
         setTooManyTabs(false);
-        dispatch({ type: 'snapshot', snapshot: JSON.parse(e.data) as Snapshot });
+        dispatch({ type: 'snapshot', snapshot });
       });
       es.addEventListener('player_update', (e) => {
-        dispatch({ type: 'player_update', update: JSON.parse(e.data) as PlayerUpdate });
+        const update = parse<PlayerUpdate>(e);
+        if (update) dispatch({ type: 'player_update', update });
       });
       es.addEventListener('api_status', (e) => {
-        dispatch({ type: 'api_status', status: (JSON.parse(e.data) as ApiStatusUpdate).bungie });
+        const update = parse<ApiStatusUpdate>(e);
+        if (update) dispatch({ type: 'api_status', status: update.bungie });
       });
       es.addEventListener('logout', endSession);
       es.onerror = () => {

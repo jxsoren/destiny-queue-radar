@@ -43,3 +43,21 @@ test('other failures change nothing', async () => {
   expect(onBungieDown).not.toHaveBeenCalled();
   expect(hook.result.current.cooldownUntil).toBe(0);
 });
+
+test('a second call while one is in flight is a no-op', async () => {
+  let resolve!: () => void;
+  const refresh = vi.fn().mockImplementationOnce(() => new Promise<void>((r) => (resolve = r))).mockResolvedValue(undefined);
+  const { hook } = setup(refresh);
+  let first!: Promise<void>;
+  act(() => {
+    first = hook.result.current.refresh();
+    void hook.result.current.refresh();
+  });
+  expect(refresh).toHaveBeenCalledOnce();
+  await act(async () => {
+    resolve();
+    await first;
+  });
+  await act(() => hook.result.current.refresh());
+  expect(refresh).toHaveBeenCalledTimes(2);
+});

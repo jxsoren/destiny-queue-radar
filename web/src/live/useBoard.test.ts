@@ -37,6 +37,18 @@ describe('useBoard', () => {
     expect(hook.result.current.state.apiStatus).toBe('down');
   });
 
+  test('malformed frames are ignored without throwing', () => {
+    const { hook } = setup();
+    const s = FakeStream.latest();
+    act(() => s.emit('snapshot', { players: [makePlayer({ membershipId: 'a' })], apiStatus: 'ok' }));
+    const before = hook.result.current.state;
+    // JSON.stringify(undefined) is undefined, so the frame's data is the unparseable text "undefined".
+    for (const type of ['snapshot', 'player_update', 'api_status']) {
+      expect(() => act(() => s.emit(type, undefined))).not.toThrow();
+    }
+    expect(hook.result.current.state).toBe(before);
+  });
+
   test('logout closes the stream and signs out', () => {
     const { onSignedOut } = setup();
     const s = FakeStream.latest();

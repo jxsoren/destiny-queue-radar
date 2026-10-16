@@ -43,7 +43,9 @@ export function statusLine(p: Player, now: number): StatusLine {
     case 'LIKELY_QUEUING': {
       const ago = since(s.lastPvpEndedAt, now);
       const what = up(s.lastPvpPlaylist) || 'PVP';
-      return plain(`${placeLabel(s)} · ${what} ENDED ${ago === null ? 'RECENTLY' : `${formatAgo(ago)} AGO`}`);
+      const place = placeLabel(s);
+      const ended = `${what} ENDED ${ago === null ? 'RECENTLY' : `${formatAgo(ago)} AGO`}`;
+      return plain(place === '—' ? ended : `${place} · ${ended}`);
     }
     case 'NOT_IN_PVP':
       return plain(placeLabel(s) + lastPvp(s, now));

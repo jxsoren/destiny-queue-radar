@@ -29,6 +29,12 @@ describe('statusLine', () => {
     expect(line({ state: 'LIKELY_QUEUING', place: 'SOCIAL', activity: 'The Tower' }).text).toBe('THE TOWER · PVP ENDED RECENTLY');
   });
 
+  test('queuing without a place drops the place prefix', () => {
+    expect(line({ state: 'LIKELY_QUEUING', lastPvpPlaylist: 'Competitive', lastPvpEndedAt: iso(120_000) }).text).toBe(
+      'COMPETITIVE ENDED 2M AGO',
+    );
+  });
+
   test('not in pvp', () => {
     expect(line({ state: 'NOT_IN_PVP', place: 'ORBIT', lastPvpEndedAt: iso(3_600_000) }).text).toBe('ORBIT · LAST PVP 1H');
     expect(line({ state: 'NOT_IN_PVP', place: 'SOCIAL', activity: 'The Tower' }).text).toBe('THE TOWER');

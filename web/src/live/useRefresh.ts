@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ApiError, api as defaultApi, type Api } from '../api/client';
 
 export const REFRESH_COOLDOWN_MS = 30_000;
@@ -13,8 +13,11 @@ export interface UseRefreshOptions {
 export function useRefresh({ client = defaultApi, onBungieDown }: UseRefreshOptions) {
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
 
   const refresh = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     try {
       await client.refresh();
@@ -26,6 +29,7 @@ export function useRefresh({ client = defaultApi, onBungieDown }: UseRefreshOpti
         onBungieDown();
       }
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }, [client, onBungieDown]);
