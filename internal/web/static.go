@@ -18,6 +18,9 @@ const (
 // A missing file under assets/ is a 404, so a stale tab never parses HTML as JavaScript.
 func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+	// Reserved paths get a JSON 404, never index.html. This also covers a real API route used with
+	// the wrong method (GET /api/refresh): "GET /" matches it, so the mux never answers 405 there.
+	// The dashboard only calls routes with the right method, so the 404 is accepted.
 	if isReserved(name) {
 		writeError(w, http.StatusNotFound, "not found")
 		return

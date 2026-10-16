@@ -93,3 +93,13 @@ func TestIndex_PlaceholderWithoutStatic(t *testing.T) {
 		t.Errorf("without Static, /board = %d, want 404", rec.Code)
 	}
 }
+
+// A known API route used with the wrong method is a JSON 404 rather than a 405: the catch-all
+// GET / pattern (see handleStatic) answers it, and /api never falls back to the SPA.
+func TestStatic_WrongMethodOnAPIRouteIs404JSON(t *testing.T) {
+	e := newStaticEnv(t)
+	rec := e.do(t, http.MethodGet, "/api/refresh", nil)
+	if rec.Code != http.StatusNotFound || decode[map[string]string](t, rec)["error"] == "" || strings.Contains(rec.Body.String(), "root") {
+		t.Errorf("GET /api/refresh = %d %q, want a JSON 404", rec.Code, rec.Body)
+	}
+}

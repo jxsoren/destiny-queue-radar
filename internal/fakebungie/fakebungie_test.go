@@ -2,9 +2,11 @@ package fakebungie
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -152,4 +154,42 @@ func TestSetStateOverHTTP(t *testing.T) {
 	if code := post("999", `{"state":"orbit"}`); code != http.StatusNotFound {
 		t.Errorf("unknown player = %d", code)
 	}
+}
+
+// SetState races with profile and PGCR reads; run with -race.
+func TestConcurrentStateChangesAndReads(t *testing.T) {
+	s := New()
+	srv := httptest.NewServer(s)
+	defer srv.Close()
+	get := func(path string) {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("GET %s = %d", path, resp.StatusCode)
+		}
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				get("/Platform/Destiny2/3/Profile/" + vex + "/?components=100,200,204,1000")
+				get("/Platform/Destiny2/Stats/PostGameCarnageReport/" + LastMatchID + "/")
+			}
+		}()
+	}
+	for _, st := range []State{InMatch, Orbit, PvE, Offline, Private} {
+		for j := 0; j < 20; j++ {
+			if err := s.SetState(vex, st); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	wg.Wait()
 }
