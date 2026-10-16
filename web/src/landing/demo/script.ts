@@ -68,12 +68,12 @@ export const DEMO_STEPS: readonly Step[] = [
   (n) => [update('demo-rook', { state: 'IN_MATCH', playlist: 'Trials of Osiris', activity: 'Endless Vale', startedAt: new Date(n).toISOString() }, n)],
 ];
 
-/** Feeds the board a scripted stream; returns a stop function. Loops back to the opening board. */
-export function startDemo(dispatch: (a: BoardAction) => void, clock: () => number = Date.now): () => void {
+/** A scripted stream that can be paused and resumed in place; `play` is idempotent. */
+export function createDemo(dispatch: (a: BoardAction) => void, clock: () => number = Date.now) {
   const reset = () => dispatch({ type: 'snapshot', snapshot: { players: demoPlayers(clock()), apiStatus: 'ok' } });
-  reset();
   let step = 0;
-  const id = setInterval(() => {
+  let id: ReturnType<typeof setInterval> | undefined;
+  const tick = () => {
     if (step >= DEMO_STEPS.length) {
       step = 0;
       reset();
@@ -81,6 +81,22 @@ export function startDemo(dispatch: (a: BoardAction) => void, clock: () => numbe
     }
     for (const u of DEMO_STEPS[step](clock())) dispatch({ type: 'player_update', update: u });
     step += 1;
-  }, DEMO_STEP_MS);
-  return () => clearInterval(id);
+  };
+  return {
+    play() {
+      if (id === undefined) id = setInterval(tick, DEMO_STEP_MS);
+    },
+    pause() {
+      clearInterval(id);
+      id = undefined;
+    },
+  };
+}
+
+/** Feeds the board a scripted stream; returns a stop function. Loops back to the opening board. */
+export function startDemo(dispatch: (a: BoardAction) => void, clock: () => number = Date.now): () => void {
+  dispatch({ type: 'snapshot', snapshot: { players: demoPlayers(clock()), apiStatus: 'ok' } });
+  const demo = createDemo(dispatch, clock);
+  demo.play();
+  return demo.pause;
 }
