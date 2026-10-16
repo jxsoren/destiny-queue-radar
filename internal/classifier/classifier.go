@@ -35,17 +35,17 @@ func New(l Lookup) *Classifier { return &Classifier{lookup: l} }
 // Classify implements status.Classifier.
 //
 // Rules, on top of current():
-//   - A profile that cannot tell us whether the player is online (transitory component
-//     not returned) leaves the previous status unchanged, so nothing flaps.
+//   - A profile missing a component (transitory or activities not returned) is undecidable:
+//     Classify returns prev and false, and the caller must treat the poll as failed.
 //   - Leaving a match, or starting a different match back to back, records
 //     LastPvPEndedAt and LastPvPPlaylist.
 //   - LIKELY_QUEUING needs the previous state to be IN_MATCH or LIKELY_QUEUING, the player
 //     in Orbit or a known social space, and the last match to have ended under queueWindow ago.
 //     A detour through PvE or an unknown activity therefore ends the queuing guess.
-func (c *Classifier) Classify(p *bungie.Profile, prev status.Status, now time.Time) status.Status {
+func (c *Classifier) Classify(p *bungie.Profile, prev status.Status, now time.Time) (status.Status, bool) {
 	next, known := c.current(p)
 	if !known {
-		return prev
+		return prev, false
 	}
 	next.LastPvPEndedAt, next.LastPvPPlaylist = prev.LastPvPEndedAt, prev.LastPvPPlaylist
 
@@ -55,7 +55,7 @@ func (c *Classifier) Classify(p *bungie.Profile, prev status.Status, now time.Ti
 			ended := now
 			next.LastPvPEndedAt = &ended
 			next.LastPvPPlaylist = playlistOf(prev)
-		case prev.StartedAt != nil && next.StartedAt != nil && !prev.StartedAt.Equal(*next.StartedAt):
+		case prev.StartedAt != nil && next.StartedAt != nil && next.StartedAt.After(*prev.StartedAt):
 			ended := *next.StartedAt
 			next.LastPvPEndedAt = &ended
 			next.LastPvPPlaylist = playlistOf(prev)
@@ -67,7 +67,7 @@ func (c *Classifier) Classify(p *bungie.Profile, prev status.Status, now time.Ti
 		next.LastPvPEndedAt != nil && now.Sub(*next.LastPvPEndedAt) < queueWindow {
 		next.State = status.LikelyQueuing
 	}
-	return next
+	return next, true
 }
 
 // playlistOf names a finished match: its playlist, else its mode.
@@ -96,6 +96,9 @@ func (c *Classifier) current(p *bungie.Profile) (status.Status, bool) {
 			return status.Status{State: status.Offline}, true
 		}
 		return status.Status{}, false
+	}
+	if acts.Privacy != bungie.PrivacyPublic && len(acts.Data) == 0 {
+		return status.Status{}, false // activities not returned: unknown, not "no characters"
 	}
 	id, ok := p.ActiveCharacterID()
 	if !ok {

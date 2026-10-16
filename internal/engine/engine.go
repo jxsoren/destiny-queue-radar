@@ -320,14 +320,20 @@ func (e *Engine) poll(ctx context.Context, id string) {
 	var next status.Status
 	switch {
 	case err == nil:
-		next = e.classifier.Classify(profile, prev.Status, now)
+		var decided bool
+		next, decided = e.classifier.Classify(profile, prev.Status, now)
+		if !decided {
+			// The API call worked but the profile could not be classified; keep the previous
+			// status and do not advance last_success_at, so the dashboard shows it as stale.
+			e.log.Debug("profile undecidable", "player", id)
+			e.savePollFailure(ctx, id, now)
+			return
+		}
 	case bungie.IsNotFound(err):
 		next = status.Status{State: status.NotFound}
 	default:
 		e.log.Warn("poll failed", "player", id, "err", err, "throttled", bungie.IsThrottled(err))
-		if err := e.store.SavePollFailure(ctx, id, now); err != nil && ctx.Err() == nil && !errors.Is(err, store.ErrNotFound) {
-			e.log.Error("save poll failure", "player", id, "err", err)
-		}
+		e.savePollFailure(ctx, id, now)
 		return
 	}
 
@@ -346,6 +352,12 @@ func (e *Engine) poll(ctx context.Context, id string) {
 	e.mu.Unlock()
 	if !next.Equal(prev.Status) {
 		e.publish(ctx, id, next, now)
+	}
+}
+
+func (e *Engine) savePollFailure(ctx context.Context, id string, now time.Time) {
+	if err := e.store.SavePollFailure(ctx, id, now); err != nil && ctx.Err() == nil && !errors.Is(err, store.ErrNotFound) {
+		e.log.Error("save poll failure", "player", id, "err", err)
 	}
 }
 

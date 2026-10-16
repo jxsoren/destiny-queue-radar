@@ -61,6 +61,9 @@ func timeEqual(a, b *time.Time) bool {
 
 // Classifier turns a freshly polled profile into a status. prev is the last stored status,
 // which carries memory such as LastPvPEndedAt between polls.
+//
+// The bool is false when the profile did not contain enough to decide (a component was not
+// returned). The caller must then keep the previous status and treat the poll as not successful.
 type Classifier interface {
-	Classify(p *bungie.Profile, prev Status, now time.Time) Status
+	Classify(p *bungie.Profile, prev Status, now time.Time) (Status, bool)
 }

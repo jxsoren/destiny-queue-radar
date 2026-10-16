@@ -184,14 +184,18 @@ func (f *fakeHub) broadcastEvents() []hub.Event {
 	return append([]hub.Event(nil), f.broadcasts...)
 }
 
-type classifyFunc func(*bungie.Profile, status.Status, time.Time) status.Status
+type classifyFunc func(*bungie.Profile, status.Status, time.Time) (status.Status, bool)
 
-func (f classifyFunc) Classify(p *bungie.Profile, prev status.Status, now time.Time) status.Status {
+func (f classifyFunc) Classify(p *bungie.Profile, prev status.Status, now time.Time) (status.Status, bool) {
 	return f(p, prev, now)
 }
 
 func always(st status.Status) classifyFunc {
-	return func(*bungie.Profile, status.Status, time.Time) status.Status { return st }
+	return func(*bungie.Profile, status.Status, time.Time) (status.Status, bool) { return st, true }
+}
+
+func undecidable() classifyFunc {
+	return func(_ *bungie.Profile, prev status.Status, _ time.Time) (status.Status, bool) { return prev, false }
 }
 
 // --- helpers ---
@@ -290,6 +294,27 @@ func TestEngine_NotFoundIsStoredAsStatus(t *testing.T) {
 	eventually(t, "not found saved", func() bool { return st.get("gone").Status.State == status.NotFound })
 	if got := e.APIState(); got != APIOK {
 		t.Errorf("api state = %s; not-found is not an API failure", got)
+	}
+}
+
+func TestEngine_UndecidableProfileIsAFailedPoll(t *testing.T) {
+	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
+	st.watch(1, player("p1"))
+	e := New(testConfig(), st, pr, undecidable(), h, quietLog())
+	run(t, e)
+
+	eventually(t, "failure saved", func() bool { return st.count(st.failures, "p1") >= 1 })
+	if st.count(st.saves, "p1") != 0 {
+		t.Error("undecidable poll must not save a success")
+	}
+	if st.get("p1").LastSuccessAt != nil {
+		t.Error("last_success_at must not advance")
+	}
+	if len(h.sentEvents()) != 0 {
+		t.Error("undecidable poll must not publish")
+	}
+	if got := e.APIState(); got != APIOK {
+		t.Errorf("api state = %s, want ok (the API call worked)", got)
 	}
 }
 
