@@ -11,6 +11,7 @@ test('shows the pending removal with undo, and errors', async () => {
   const { rerender, container } = render(<UndoBar pending={makePlayer()} error={null} onUndo={onUndo} onDismissError={onDismissError} />);
   expect(screen.getByText('STOPPED WATCHING VEX#1111 ·')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'UNDO' })).toHaveFocus();
+  expect(screen.getByRole('button', { name: 'UNDO' })).toHaveAccessibleDescription('STOPPED WATCHING VEX#1111 ·');
   await user.click(screen.getByRole('button', { name: 'UNDO' }));
   expect(onUndo).toHaveBeenCalledOnce();
 

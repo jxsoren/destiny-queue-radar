@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api as defaultApi, type Api } from '../api/client';
 import type { Me } from '../api/types';
 import { useNow } from '../lib/useNow';
@@ -56,6 +56,22 @@ export function Board({ onSignedOut, client = defaultApi, stream }: BoardProps) 
     return () => window.removeEventListener('keydown', onKey);
   }, [managing, paletteOpen]);
 
+  // When the undo bar goes away (undo or commit) its button takes focus with it; hand focus to a stable control.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const hadPending = useRef(false);
+  useEffect(() => {
+    const had = hadPending.current;
+    hadPending.current = removal.pending !== null;
+    if (!had || removal.pending) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    const root = rootRef.current;
+    const target =
+      root?.querySelector<HTMLElement>('button[aria-keyshortcuts="/"]') ??
+      root?.querySelector<HTMLElement>('button[aria-label^="Stop watching"]');
+    target?.focus();
+  }, [removal.pending]);
+
   const players = useMemo(
     () => [...state.players.values()].filter((p) => !removal.hidden.has(p.membershipId)),
     [state.players, removal.hidden],
@@ -92,7 +108,7 @@ export function Board({ onSignedOut, client = defaultApi, stream }: BoardProps) 
   }
 
   return (
-    <div data-testid="board-root" className={`scanlines min-h-screen bg-ground text-ink ${removal.pending || removeError ? 'pb-40' : 'pb-24'}`}>
+    <div ref={rootRef} data-testid="board-root" className={`scanlines min-h-screen bg-ground text-ink ${removal.pending || removeError ? 'pb-40' : 'pb-24'}`}>
       <div className="grid gap-px bg-line">
         <Header
           watching={state.players.size}

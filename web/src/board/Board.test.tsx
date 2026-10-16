@@ -75,6 +75,42 @@ describe('Board', () => {
     await user.click(screen.getByRole('button', { name: 'UNDO' }));
     expect(screen.getByTestId('card-4611')).toBeInTheDocument();
     expect(client.removeWatch).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Stop watching Vex#1111' })).toHaveFocus();
+  });
+
+  test('focus returns to "+ Track a player" when the undo bar commits outside manage mode', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { client, user } = setup();
+      snapshot();
+      await user.click(screen.getByRole('button', { name: 'MANAGE' }));
+      await user.click(screen.getByRole('button', { name: 'Stop watching Vex#1111' }));
+      await user.keyboard('{Escape}'); // leave manage mode; focus stays on UNDO
+      expect(screen.getByRole('button', { name: 'UNDO' })).toHaveFocus();
+      await act(() => vi.advanceTimersByTimeAsync(5_000));
+      expect(client.removeWatch).toHaveBeenCalled();
+      expect(screen.queryByRole('button', { name: 'UNDO' })).toBeNull();
+      expect(screen.getByRole('button', { name: /TRACK A PLAYER/ })).toHaveFocus();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('pb-40 also applies while a removal error is showing', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { client, user } = setup();
+      client.removeWatch.mockRejectedValue(new Error('x'));
+      snapshot();
+      await user.click(screen.getByRole('button', { name: 'MANAGE' }));
+      await user.click(screen.getByRole('button', { name: 'Stop watching Vex#1111' }));
+      await act(() => vi.advanceTimersByTimeAsync(5_000));
+      expect(screen.queryByRole('button', { name: 'UNDO' })).toBeNull();
+      expect(screen.getByRole('alert')).toHaveTextContent('COULD NOT STOP WATCHING VEX#1111');
+      expect(screen.getByTestId('board-root')).toHaveClass('pb-40');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test('Esc leaves manage mode', async () => {

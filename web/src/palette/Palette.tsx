@@ -27,7 +27,7 @@ export function Palette(props: PaletteProps) {
 type Recent = { kind: 'loading' } | { kind: 'ready'; matches: Match[] } | { kind: 'error'; error: unknown };
 
 const NO_MATCHES: Match[] = [];
-const rowId = (r: Row) => `palette-${r.key.replace(/[^A-Za-z0-9_-]/g, '-')}`;
+const rowId = (key: string) => `palette-${key.replace(/[^A-Za-z0-9_-]/g, '-')}`;
 
 function toggled(set: ReadonlySet<string>, id: string): Set<string> {
   const next = new Set(set);
@@ -96,9 +96,10 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
   const rows = useMemo(() => flatten(groups), [groups]);
   const index = rows.length === 0 ? -1 : Math.min(active, rows.length - 1);
 
+  const activeKey = index >= 0 ? rows[index].key : null;
   useEffect(() => {
-    if (index >= 0) document.getElementById(rowId(rows[index]))?.scrollIntoView?.({ block: 'nearest' });
-  }, [index, rows]);
+    if (activeKey !== null) document.getElementById(rowId(activeKey))?.scrollIntoView?.({ block: 'nearest' });
+  }, [index, activeKey]);
 
   async function act(row: Row) {
     if (row.kind === 'lobby') {
@@ -166,7 +167,7 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
         aria-expanded="true"
         aria-controls="palette-list"
         aria-autocomplete="list"
-        aria-activedescendant={index >= 0 ? rowId(rows[index]) : undefined}
+        aria-activedescendant={index >= 0 ? rowId(rows[index].key) : undefined}
         aria-label="Filter your lobbies, or enter a Bungie Name"
         placeholder="FILTER LOBBIES OR ENTER NAME#1234"
         autoComplete="off"
@@ -185,7 +186,7 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
           {error}
         </p>
       )}
-      <div role="status" className="empty:hidden">
+      <div role="status">
         {recent.kind === 'loading' && <Note>LOADING YOUR MATCHES…</Note>}
         {recent.kind === 'error' &&
           (needsReauth(recent.error) ? (
@@ -240,7 +241,7 @@ interface RowViewProps {
 function RowView({ row, active, adding, onAct, onHover }: RowViewProps) {
   const base = `flex cursor-pointer items-center gap-3 px-4 py-2 ${active ? 'bg-raised text-ink outline outline-2 -outline-offset-2 outline-ink' : ''}`;
   const common = {
-    id: rowId(row),
+    id: rowId(row.key),
     role: 'option' as const,
     'aria-selected': active,
     onMouseDown: (e: MouseEvent) => e.preventDefault(), // keep focus in the input

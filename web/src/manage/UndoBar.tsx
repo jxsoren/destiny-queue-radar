@@ -21,8 +21,8 @@ export function UndoBar({ pending, error, onUndo, onDismissError }: UndoBarProps
     <div className="fixed inset-x-0 bottom-0 z-30 grid gap-px bg-line">
       {pending && (
         <div role="status" className="tele flex items-center justify-between bg-raised px-4 py-3 text-ink">
-          <span>STOPPED WATCHING {displayName(pending).toUpperCase()} ·</span>
-          <button ref={undoRef} type="button" onClick={onUndo} className="px-3 py-1 text-accent underline hover:bg-accent hover:text-ground">
+          <span id="undo-message">STOPPED WATCHING {displayName(pending).toUpperCase()} ·</span>
+          <button ref={undoRef} aria-describedby="undo-message" type="button" onClick={onUndo} className="px-3 py-1 text-accent underline hover:bg-accent hover:text-ground">
             UNDO
           </button>
         </div>

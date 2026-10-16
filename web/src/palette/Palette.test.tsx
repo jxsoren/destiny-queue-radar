@@ -199,6 +199,26 @@ describe('Palette accessibility and behaviour', () => {
     expect(said.closest('[role=status]')).toHaveAttribute('aria-live', 'polite');
   });
 
+  test('the notes status region stays in the DOM, and visible, when empty', async () => {
+    setup();
+    await screen.findByRole('option', { name: /Vex#1111/ });
+    const region = screen.getAllByRole('status').find((el) => !el.classList.contains('sr-only'))!;
+    expect(region).toBeEmptyDOMElement();
+    expect(region.className).not.toContain('empty:hidden');
+  });
+
+  test('the active row is not re-scrolled when rows change but the active row does not', async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    let finish!: () => void;
+    const { user } = setup({ addWatch: vi.fn().mockReturnValue(new Promise<void>((r) => (finish = r))) });
+    await user.click(await screen.findByRole('option', { name: /Vex#1111/ }));
+    const calls = scroll.mock.calls.length;
+    await act(async () => finish());
+    await screen.findByRole('option', { name: /Vex#1111 · WATCHING/ });
+    expect(scroll.mock.calls.length).toBe(calls);
+  });
+
   test('typing clears the previous error', async () => {
     const { user } = setup({ addWatch: vi.fn().mockRejectedValue(new ApiError(409, 'x', null, false)) });
     await user.click(await screen.findByRole('option', { name: /Vex#1111/ }));
@@ -232,14 +252,16 @@ describe('Palette search debounce', () => {
     vi.useRealTimers();
   });
 
-  test('searches once, 300ms after the last keystroke, with the final name', async () => {
+  test('every keystroke restarts the 300ms timer; one search with the final name', async () => {
     const { client, user } = setup({}, true);
     await act(() => vi.advanceTimersByTimeAsync(0));
     await user.type(input(), 'Ghost#0880');
+    await act(() => vi.advanceTimersByTimeAsync(200));
+    await user.type(input(), '{Backspace}1'); // still a valid Bungie name: Ghost#0881
     await act(() => vi.advanceTimersByTimeAsync(299));
     expect(client.search).not.toHaveBeenCalled();
     await act(() => vi.advanceTimersByTimeAsync(1));
     expect(client.search).toHaveBeenCalledTimes(1);
-    expect(client.search).toHaveBeenCalledWith('Ghost#0880');
+    expect(client.search).toHaveBeenCalledWith('Ghost#0881');
   });
 });
