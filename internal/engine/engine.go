@@ -337,7 +337,7 @@ func (e *Engine) poll(ctx context.Context, id string) {
 		return
 	}
 
-	emblem, background := activeEmblem(profile)
+	emblem, background := profile.ActiveEmblem()
 	if err := e.store.SavePollSuccess(ctx, id, next, emblem, background, now); err != nil {
 		// ErrNotFound: the player was deleted mid-poll; nothing to save or publish.
 		if ctx.Err() == nil && !errors.Is(err, store.ErrNotFound) {
@@ -412,23 +412,4 @@ func (e *Engine) recordHealth(at time.Time, err error) {
 	}
 	e.log.Info("bungie api state changed", "state", state)
 	e.hub.Broadcast(hub.Event{Type: EventAPIStatus, Data: APIStatusUpdate{Bungie: state}})
-}
-
-// activeEmblem returns the emblem of the character currently in use, falling back to the
-// most recently played character when there is no activity data.
-func activeEmblem(p *bungie.Profile) (string, string) {
-	if p == nil {
-		return "", ""
-	}
-	id, ok := p.ActiveCharacterID()
-	if !ok {
-		var latest time.Time
-		for cid, c := range p.Characters.Data {
-			if id == "" || c.DateLastPlayed.After(latest) || (c.DateLastPlayed.Equal(latest) && cid < id) {
-				id, latest = cid, c.DateLastPlayed
-			}
-		}
-	}
-	c := p.Characters.Data[id]
-	return c.EmblemPath, c.EmblemBackgroundPath
 }

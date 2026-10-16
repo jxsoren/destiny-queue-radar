@@ -139,3 +139,28 @@ func TestGetProfile_PrivateComponentsDecodeAsNilData(t *testing.T) {
 		t.Error("expected ok=false")
 	}
 }
+
+func TestActiveEmblem(t *testing.T) {
+	p := &Profile{}
+	p.Characters.Data = map[string]Character{
+		"c1": {EmblemPath: "/1.jpg", EmblemBackgroundPath: "/1bg.jpg", DateLastPlayed: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)},
+		"c2": {EmblemPath: "/2.jpg", EmblemBackgroundPath: "/2bg.jpg", DateLastPlayed: time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC)},
+	}
+	// No activity data: fall back to the most recently played character.
+	if e, bg := p.ActiveEmblem(); e != "/2.jpg" || bg != "/2bg.jpg" {
+		t.Errorf("fallback = %q, %q", e, bg)
+	}
+	p.CharacterActivities.Data = map[string]CharacterActivities{
+		"c1": {DateActivityStarted: time.Date(2026, 10, 16, 0, 0, 0, 0, time.UTC)},
+	}
+	if e, _ := p.ActiveEmblem(); e != "/1.jpg" {
+		t.Errorf("active = %q", e)
+	}
+	var nilProfile *Profile
+	if e, bg := nilProfile.ActiveEmblem(); e != "" || bg != "" {
+		t.Error("nil profile should give empty paths")
+	}
+	if e, bg := (&Profile{}).ActiveEmblem(); e != "" || bg != "" {
+		t.Error("profile without characters should give empty paths")
+	}
+}

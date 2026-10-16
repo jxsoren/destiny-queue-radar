@@ -415,27 +415,6 @@ func TestRequestRefresh_SkipsRecentlyPolled(t *testing.T) {
 	}
 }
 
-func TestActiveEmblem(t *testing.T) {
-	p := &bungie.Profile{}
-	p.Characters.Data = map[string]bungie.Character{
-		"c1": {EmblemPath: "/1.jpg", EmblemBackgroundPath: "/1bg.jpg", DateLastPlayed: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)},
-		"c2": {EmblemPath: "/2.jpg", EmblemBackgroundPath: "/2bg.jpg", DateLastPlayed: time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC)},
-	}
-	// No activity data: fall back to the most recently played character.
-	if e, bg := activeEmblem(p); e != "/2.jpg" || bg != "/2bg.jpg" {
-		t.Errorf("fallback = %q, %q", e, bg)
-	}
-	p.CharacterActivities.Data = map[string]bungie.CharacterActivities{
-		"c1": {DateActivityStarted: time.Date(2026, 10, 16, 0, 0, 0, 0, time.UTC)},
-	}
-	if e, _ := activeEmblem(p); e != "/1.jpg" {
-		t.Errorf("active = %q", e)
-	}
-	if e, bg := activeEmblem(nil); e != "" || bg != "" {
-		t.Error("nil profile should give empty paths")
-	}
-}
-
 // --- hardening tests ---
 
 func TestRequestRefresh_PollsAlreadyPolledPlayer(t *testing.T) {

@@ -136,3 +136,23 @@ func (p *Profile) moreActive(a, b string) bool {
 	}
 	return a < b
 }
+
+// ActiveEmblem returns the emblem icon and banner of the character in use: the active
+// character when there is activity data, else the most recently played one. It returns empty
+// paths for a nil profile or one without characters.
+func (p *Profile) ActiveEmblem() (icon, background string) {
+	if p == nil {
+		return "", ""
+	}
+	id, ok := p.ActiveCharacterID()
+	if !ok {
+		var latest time.Time
+		for cid, c := range p.Characters.Data {
+			if id == "" || c.DateLastPlayed.After(latest) || (c.DateLastPlayed.Equal(latest) && cid < id) {
+				id, latest = cid, c.DateLastPlayed
+			}
+		}
+	}
+	c := p.Characters.Data[id]
+	return c.EmblemPath, c.EmblemBackgroundPath
+}
