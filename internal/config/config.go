@@ -17,9 +17,10 @@ type Config struct {
 
 // FromEnv builds a Config using getenv (normally os.Getenv).
 func FromEnv(getenv func(string) string) (Config, error) {
+	get := func(k string) string { return strings.TrimSpace(getenv(k)) }
 	c := Config{
-		BungieAPIKey:  getenv("BUNGIE_API_KEY"),
-		BungieBaseURL: getenv("BUNGIE_BASE_URL"),
+		BungieAPIKey:  get("BUNGIE_API_KEY"),
+		BungieBaseURL: get("BUNGIE_BASE_URL"),
 	}
 	if c.BungieAPIKey == "" {
 		return Config{}, errors.New("BUNGIE_API_KEY is required")
@@ -50,24 +51,32 @@ type Server struct {
 	TLSKeyFile        string
 }
 
+// String summarizes the configuration with secrets and the database URL redacted.
+func (s Server) String() string {
+	tls := s.TLSCertFile != "" && s.TLSKeyFile != ""
+	return fmt.Sprintf("Server{Addr:%s DatabaseURL:<set> OAuthClientID:%s OAuthClientSecret:<redacted> TokenKey:<redacted> TLS:%t}",
+		s.Addr, s.OAuthClientID, tls)
+}
+
 // ServerFromEnv builds the server configuration using getenv (normally os.Getenv).
 func ServerFromEnv(getenv func(string) string) (Server, error) {
 	base, err := FromEnv(getenv)
 	if err != nil {
 		return Server{}, err
 	}
+	get := func(k string) string { return strings.TrimSpace(getenv(k)) }
 	s := Server{
 		Config:            base,
-		DatabaseURL:       getenv("DATABASE_URL"),
-		OAuthClientID:     getenv("BUNGIE_OAUTH_CLIENT_ID"),
-		OAuthClientSecret: getenv("BUNGIE_OAUTH_CLIENT_SECRET"),
-		OAuthRedirectURL:  getenv("BUNGIE_OAUTH_REDIRECT_URL"),
-		StatsBaseURL:      getenv("BUNGIE_STATS_BASE_URL"),
-		Addr:              getenv("ADDR"),
-		TLSCertFile:       getenv("TLS_CERT_FILE"),
-		TLSKeyFile:        getenv("TLS_KEY_FILE"),
+		DatabaseURL:       get("DATABASE_URL"),
+		OAuthClientID:     get("BUNGIE_OAUTH_CLIENT_ID"),
+		OAuthClientSecret: get("BUNGIE_OAUTH_CLIENT_SECRET"),
+		OAuthRedirectURL:  get("BUNGIE_OAUTH_REDIRECT_URL"),
+		StatsBaseURL:      get("BUNGIE_STATS_BASE_URL"),
+		Addr:              get("ADDR"),
+		TLSCertFile:       get("TLS_CERT_FILE"),
+		TLSKeyFile:        get("TLS_KEY_FILE"),
 	}
-	rawKey := getenv("TOKEN_ENCRYPTION_KEY")
+	rawKey := get("TOKEN_ENCRYPTION_KEY")
 
 	required := []struct{ name, value string }{
 		{"DATABASE_URL", s.DatabaseURL},
@@ -87,6 +96,7 @@ func ServerFromEnv(getenv func(string) string) (Server, error) {
 	}
 
 	key, err := base64.StdEncoding.DecodeString(rawKey)
+	// cryptobox.New also enforces the 32-byte length (defence in depth).
 	if err != nil || len(key) != 32 {
 		return Server{}, errors.New("TOKEN_ENCRYPTION_KEY must be 32 bytes, base64-encoded (generate with: openssl rand -base64 32)")
 	}
