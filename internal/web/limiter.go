@@ -14,6 +14,9 @@ type userLimiter struct {
 	window  time.Duration
 	now     func() time.Time
 	windows map[int64]userWindow
+	// lastSweep is when expired windows were last dropped; sweeping at most once per window
+	// keeps allow cheap while bounding memory.
+	lastSweep time.Time
 }
 
 type userWindow struct {
@@ -39,7 +42,8 @@ func (l *userLimiter) allow(userID int64) (bool, time.Duration) {
 	}
 	w.count++
 	l.windows[userID] = w
-	if len(l.windows) > 10_000 {
+	if now.Sub(l.lastSweep) >= l.window {
+		l.lastSweep = now
 		for id, old := range l.windows {
 			if now.Sub(old.start) >= l.window {
 				delete(l.windows, id)

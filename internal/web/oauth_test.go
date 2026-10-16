@@ -46,6 +46,36 @@ func TestCallback_RejectsMissingOrWrongState(t *testing.T) {
 	if e.tokens.gotCode != "" {
 		t.Error("code was exchanged despite a bad state")
 	}
+	var cleared bool
+	for _, c := range callback(e, t, "code=c&state=abc", "xyz").Cookies() {
+		if c.Name == auth.StateCookie && c.MaxAge < 0 {
+			cleared = true
+		}
+	}
+	if !cleared {
+		t.Error("state cookie not cleared on a state mismatch")
+	}
+}
+
+func TestCallback_ReplacesExistingSession(t *testing.T) {
+	e := newTestEnv(t)
+	e.tokens.exchange = auth.TokenResponse{AccessToken: "acc", MembershipID: "bnet-1"}
+	e.bungie.current = bungie.CurrentUser{
+		BungieNetMembershipID: "bnet-1", BungieName: "Guardian#1993",
+		Destiny: bungie.UserInfoCard{MembershipType: 3, MembershipID: "4611"},
+	}
+	_, old := e.login(t, "Other#0001")
+	rec := e.do(t, http.MethodGet, "/auth/callback?code=c&state=st", nil,
+		&http.Cookie{Name: auth.StateCookie, Value: "st"}, old)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("callback = %d", rec.Code)
+	}
+	if _, ok := e.store.sessions[string(auth.HashToken(old.Value))]; ok {
+		t.Error("previous session survived a new sign-in")
+	}
+	if len(e.store.sessions) != 1 {
+		t.Errorf("sessions = %d, want 1", len(e.store.sessions))
+	}
 }
 
 func TestCallback_SignsInAndCreatesSession(t *testing.T) {
@@ -106,6 +136,15 @@ func TestCallback_Failures(t *testing.T) {
 		tt.setup(e)
 		if r := callback(e, t, tt.query, "st"); r.StatusCode != tt.want {
 			t.Errorf("%s: code = %d, want %d", tt.name, r.StatusCode, tt.want)
+		} else {
+			for _, c := range r.Cookies() {
+				if c.Name == auth.SessionCookie {
+					t.Errorf("%s: session cookie set on a failure", tt.name)
+				}
+			}
+		}
+		if len(e.store.sessions) != 0 {
+			t.Errorf("%s: %d sessions stored on a failure", tt.name, len(e.store.sessions))
 		}
 	}
 }

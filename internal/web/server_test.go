@@ -32,6 +32,8 @@ type fakeStore struct {
 	sessions map[string]fakeSession
 	watch    map[int64][]store.WatchedPlayer
 	addErr   error
+	// onWatchlist, when set, runs at the start of Watchlist (outside the lock).
+	onWatchlist func()
 }
 
 func newFakeStore() *fakeStore {
@@ -155,6 +157,9 @@ func (f *fakeStore) RemoveWatch(_ context.Context, userID int64, id string) erro
 }
 
 func (f *fakeStore) Watchlist(_ context.Context, userID int64) ([]store.WatchedPlayer, error) {
+	if f.onWatchlist != nil {
+		f.onWatchlist()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]store.WatchedPlayer(nil), f.watch[userID]...), nil
@@ -185,6 +190,8 @@ func (f *fakeEngine) APIState() engine.APIState {
 
 type fakeBungie struct {
 	cards      map[string]bungie.UserInfoCard
+	profiles   map[string]*bungie.Profile // keyed by membershipId
+	profileErr error
 	searchErr  error
 	current    bungie.CurrentUser
 	currentErr error
@@ -200,6 +207,17 @@ func (f *fakeBungie) SearchByBungieName(_ context.Context, name string, code int
 		return bungie.UserInfoCard{}, bungie.ErrPlayerNotFound
 	}
 	return c, nil
+}
+
+func (f *fakeBungie) GetProfile(_ context.Context, _ int64, id string) (*bungie.Profile, error) {
+	if f.profileErr != nil {
+		return nil, f.profileErr
+	}
+	p, ok := f.profiles[id]
+	if !ok {
+		return nil, bungie.ErrPlayerNotFound
+	}
+	return p, nil
 }
 
 func (f *fakeBungie) GetCurrentUser(_ context.Context, token string) (bungie.CurrentUser, error) {
@@ -272,7 +290,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	e := &testEnv{
 		store:   newFakeStore(),
 		engine:  &fakeEngine{},
-		bungie:  &fakeBungie{cards: map[string]bungie.UserInfoCard{}},
+		bungie:  &fakeBungie{cards: map[string]bungie.UserInfoCard{}, profiles: map[string]*bungie.Profile{}},
 		tokens:  &fakeTokens{persisted: map[int64]auth.TokenResponse{}},
 		matches: &fakeMatches{byID: map[string]matches.Match{}},
 		hub:     hub.New(8),
@@ -340,4 +358,12 @@ func cookieNamed(rec *httptest.ResponseRecorder, name string) *http.Cookie {
 		}
 	}
 	return nil
+}
+
+// addProfile registers the profile Bungie returns for a membership ID.
+func (e *testEnv) addProfile(mType int64, id, name string, code int) {
+	p := &bungie.Profile{}
+	p.Profile.Data = &bungie.ProfileData{UserInfo: bungie.UserInfo{
+		MembershipType: mType, MembershipID: id, BungieGlobalDisplayName: name, BungieGlobalDisplayNameCode: code}}
+	e.bungie.profiles[id] = p
 }

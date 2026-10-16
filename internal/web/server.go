@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/jxsoren/destiny-queue-radar/internal/auth"
@@ -45,6 +46,7 @@ type Hub interface {
 type Bungie interface {
 	SearchByBungieName(ctx context.Context, name string, code int) (bungie.UserInfoCard, error)
 	GetCurrentUser(ctx context.Context, accessToken string) (bungie.CurrentUser, error)
+	GetProfile(ctx context.Context, membershipType int64, membershipID string) (*bungie.Profile, error)
 }
 
 // Tokens is implemented by *auth.TokenManager.
@@ -83,7 +85,9 @@ type Deps struct {
 const (
 	requestedWithHeader = "X-Requested-With"
 	requestedWithValue  = "dqr"
-	lookupsPerMinute    = 30 // search and match lookups per user (spec §7.5)
+	lookupsPerMinute    = 30 // search, match and add-to-watchlist lookups per user (spec §7.5)
+	maxStreamsPerUser   = 8
+	streamWriteTimeout  = 10 * time.Second
 )
 
 type Server struct {
@@ -92,10 +96,12 @@ type Server struct {
 	limiter   *userLimiter
 	now       func() time.Time
 	heartbeat time.Duration
+	streamsMu sync.Mutex
+	streams   map[int64]int // open live streams per user
 }
 
 func New(d Deps) *Server {
-	s := &Server{d: d, mux: http.NewServeMux(), now: time.Now, heartbeat: 25 * time.Second}
+	s := &Server{d: d, mux: http.NewServeMux(), now: time.Now, heartbeat: 25 * time.Second, streams: map[int64]int{}}
 	s.limiter = newUserLimiter(lookupsPerMinute, time.Minute)
 	s.limiter.now = func() time.Time { return s.now() }
 	s.routes()

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jxsoren/destiny-queue-radar/internal/auth"
 	"github.com/jxsoren/destiny-queue-radar/internal/engine"
 	"github.com/jxsoren/destiny-queue-radar/internal/hub"
 	"github.com/jxsoren/destiny-queue-radar/internal/store"
@@ -160,5 +161,105 @@ func TestStream_RequiresSession(t *testing.T) {
 	e := newTestEnv(t)
 	if rec := e.do(t, http.MethodGet, "/api/stream", nil); rec.Code != http.StatusUnauthorized {
 		t.Errorf("code = %d", rec.Code)
+	}
+}
+
+// openStream connects to /api/stream and returns the response (the caller closes it).
+func openStream(t *testing.T, ctx context.Context, srv *httptest.Server, cookie *http.Cookie) *http.Response {
+	t.Helper()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/api/stream", nil)
+	req.AddCookie(cookie)
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+func TestStream_PerUserCap(t *testing.T) {
+	e := newTestEnv(t)
+	_, cookie := e.login(t, "Guardian#1993")
+	srv := httptest.NewServer(e.s)
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for i := 0; i < maxStreamsPerUser; i++ {
+		resp := openStream(t, ctx, srv, cookie)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("stream %d = %d", i+1, resp.StatusCode)
+		}
+	}
+	resp := openStream(t, ctx, srv, cookie)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Errorf("stream %d = %d, want 429", maxStreamsPerUser+1, resp.StatusCode)
+	}
+
+	// Closing one frees a slot.
+	cancel()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		e.s.streamsMu.Lock()
+		n := e.s.streams[1]
+		e.s.streamsMu.Unlock()
+		if n == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("stream count = %d after all clients disconnected", n)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestStream_LogoutWhenSessionEnds(t *testing.T) {
+	e := newTestEnv(t)
+	_, cookie := e.login(t, "Guardian#1993")
+	e.s.heartbeat = 20 * time.Millisecond
+	srv := httptest.NewServer(e.s)
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resp := openStream(t, ctx, srv, cookie)
+	defer resp.Body.Close()
+	events := readEvents(bufio.NewReader(resp.Body))
+	if snap := next(t, events, true); snap.name != "snapshot" {
+		t.Fatalf("first event = %+v", snap)
+	}
+
+	e.store.DeleteSession(context.Background(), auth.HashToken(cookie.Value))
+	if ev := next(t, events, true); ev.name != "logout" {
+		t.Fatalf("event = %+v, want logout", ev)
+	}
+	select {
+	case _, ok := <-events:
+		if ok {
+			t.Error("stream kept sending after logout")
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("stream not closed after logout")
+	}
+}
+
+func TestStream_EventBetweenSubscribeAndSnapshotIsDelivered(t *testing.T) {
+	e := newTestEnv(t)
+	u, cookie := e.login(t, "Guardian#1993")
+	e.store.onWatchlist = func() {
+		e.hub.SendTo([]int64{u.ID}, hub.Event{Type: engine.EventPlayerUpdate, Data: engine.PlayerUpdate{MembershipID: "777"}})
+	}
+	srv := httptest.NewServer(e.s)
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resp := openStream(t, ctx, srv, cookie)
+	defer resp.Body.Close()
+	events := readEvents(bufio.NewReader(resp.Body))
+	if snap := next(t, events, true); snap.name != "snapshot" {
+		t.Fatalf("first event = %+v", snap)
+	}
+	if upd := next(t, events, true); upd.name != engine.EventPlayerUpdate {
+		t.Errorf("event published before the snapshot was lost: %+v", upd)
 	}
 }

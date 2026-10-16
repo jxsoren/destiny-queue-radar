@@ -36,3 +36,16 @@ func TestRetryAfterSeconds(t *testing.T) {
 		}
 	}
 }
+
+func TestUserLimiter_SweepsExpiredWindowsOncePerWindow(t *testing.T) {
+	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	l := newUserLimiter(2, time.Minute)
+	l.now = func() time.Time { return now }
+	l.allow(1)
+	l.allow(2)
+	now = now.Add(2 * time.Minute)
+	l.allow(3)
+	if len(l.windows) != 1 {
+		t.Errorf("windows = %d, want expired entries swept leaving 1", len(l.windows))
+	}
+}

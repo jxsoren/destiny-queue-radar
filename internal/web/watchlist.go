@@ -58,14 +58,20 @@ type addWatchRequest struct {
 	Source         string `json:"source"`
 }
 
+// validMembershipTypes are Bungie's platform membership types: Xbox, PSN, Steam, Stadia,
+// Epic, Bungie.net and "all".
+var validMembershipTypes = map[int64]bool{1: true, 2: true, 3: true, 5: true, 6: true, 10: true, 254: true}
+
+// handleAddWatch never trusts client-supplied identity: the player row is shared by every
+// user who watches them, so type and name come from Bungie's own answer.
 func (s *Server) handleAddWatch(w http.ResponseWriter, r *http.Request, u store.User) {
 	var req addWatchRequest
 	if err := decodeJSON(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		badBody(w, err)
 		return
 	}
 	switch {
-	case req.MembershipType <= 0 || !isDigits(req.MembershipID):
+	case !validMembershipTypes[req.MembershipType] || !isDigits(req.MembershipID):
 		writeError(w, http.StatusBadRequest, "membershipType and a numeric membershipId are required")
 		return
 	case req.Source != store.SourceSearch && req.Source != store.SourceMatch:
@@ -75,8 +81,29 @@ func (s *Server) handleAddWatch(w http.ResponseWriter, r *http.Request, u store.
 		writeError(w, http.StatusBadRequest, "note is too long")
 		return
 	}
-	ref := store.PlayerRef{MembershipType: req.MembershipType, MembershipID: req.MembershipID, BungieName: req.BungieName}
-	err := s.d.Store.AddWatch(r.Context(), u.ID, ref, req.Note, req.Source)
+	if !s.allowLookup(w, u) {
+		return
+	}
+	prof, err := s.d.Bungie.GetProfile(r.Context(), req.MembershipType, req.MembershipID)
+	var apiErr *bungie.APIError
+	if bungie.IsNotFound(err) || (errors.As(err, &apiErr) && apiErr.Code != 0) {
+		writeError(w, http.StatusNotFound, "player not found")
+		return
+	}
+	if err != nil {
+		s.d.Log.Warn("profile lookup failed", "err", err)
+		writeError(w, http.StatusBadGateway, "could not reach Bungie")
+		return
+	}
+	// Private or missing profile data: keep the (Bungie-confirmed) ID, leave the name empty.
+	ref := store.PlayerRef{MembershipType: req.MembershipType, MembershipID: req.MembershipID}
+	if d := prof.Profile.Data; d != nil {
+		ref.MembershipType, ref.MembershipID = d.UserInfo.MembershipType, d.UserInfo.MembershipID
+		if n := d.UserInfo.BungieGlobalDisplayName; n != "" {
+			ref.BungieName = bungie.FormatBungieName(n, d.UserInfo.BungieGlobalDisplayNameCode)
+		}
+	}
+	err = s.d.Store.AddWatch(r.Context(), u.ID, ref, req.Note, req.Source)
 	if errors.Is(err, store.ErrWatchlistFull) {
 		writeError(w, http.StatusConflict, "your watchlist is full")
 		return
@@ -92,11 +119,20 @@ func (s *Server) handleUpdateNote(w http.ResponseWriter, r *http.Request, u stor
 	var req struct {
 		Note string `json:"note"`
 	}
-	if err := decodeJSON(w, r, &req); err != nil || utf8.RuneCountInString(req.Note) > maxNoteLen {
-		writeError(w, http.StatusBadRequest, "invalid note")
+	id := r.PathValue("membershipId")
+	if !isDigits(id) {
+		writeError(w, http.StatusBadRequest, "invalid membership id")
 		return
 	}
-	err := s.d.Store.UpdateNote(r.Context(), u.ID, r.PathValue("membershipId"), req.Note)
+	if err := decodeJSON(w, r, &req); err != nil {
+		badBody(w, err)
+		return
+	}
+	if utf8.RuneCountInString(req.Note) > maxNoteLen {
+		writeError(w, http.StatusBadRequest, "note is too long")
+		return
+	}
+	err := s.d.Store.UpdateNote(r.Context(), u.ID, id, req.Note)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "not on your watchlist")
 		return
@@ -109,7 +145,12 @@ func (s *Server) handleUpdateNote(w http.ResponseWriter, r *http.Request, u stor
 }
 
 func (s *Server) handleRemoveWatch(w http.ResponseWriter, r *http.Request, u store.User) {
-	err := s.d.Store.RemoveWatch(r.Context(), u.ID, r.PathValue("membershipId"))
+	id := r.PathValue("membershipId")
+	if !isDigits(id) {
+		writeError(w, http.StatusBadRequest, "invalid membership id")
+		return
+	}
+	err := s.d.Store.RemoveWatch(r.Context(), u.ID, id)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "not on your watchlist")
 		return
@@ -163,8 +204,9 @@ func (s *Server) allowLookup(w http.ResponseWriter, u store.User) bool {
 	return ok
 }
 
+// isDigits reports whether s is a 1-19 digit ID (the most a 64-bit Bungie ID can hold).
 func isDigits(s string) bool {
-	if s == "" {
+	if s == "" || len(s) > 19 {
 		return false
 	}
 	for _, c := range s {

@@ -26,11 +26,12 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(auth.StateCookie); err == nil {
 		stateCookie = c.Value
 	}
+	// The state is single-use: clear it whether or not it matches.
+	http.SetCookie(w, auth.ClearStateCookie())
 	if !auth.StateMatches(stateCookie, q.Get("state")) {
 		writeError(w, http.StatusBadRequest, "sign-in expired or was tampered with; try again")
 		return
 	}
-	http.SetCookie(w, auth.ClearStateCookie())
 	if q.Get("error") != "" {
 		writeError(w, http.StatusBadRequest, "Bungie sign-in was cancelled")
 		return
@@ -79,6 +80,13 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	if err := s.d.Tokens.Persist(ctx, u.ID, tokens); err != nil {
 		s.internal(w, r, err)
 		return
+	}
+	// Rotate: a new sign-in invalidates any session the browser already had.
+	if old, err := r.Cookie(auth.SessionCookie); err == nil && old.Value != "" {
+		if err := s.d.Store.DeleteSession(ctx, auth.HashToken(old.Value)); err != nil {
+			s.internal(w, r, err)
+			return
+		}
 	}
 	session, err := auth.NewToken()
 	if err != nil {
