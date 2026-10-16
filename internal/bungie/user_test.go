@@ -11,8 +11,8 @@ const membershipsBody = `{"ErrorCode":1,"Response":{
 	"bungieNetUser":{"membershipId":"bnet-1","uniqueName":"Fallback#0001"},
 	"primaryMembershipId":"steam",
 	"destinyMemberships":[
-		{"membershipType":2,"membershipId":"psn","crossSaveOverride":2,"bungieGlobalDisplayName":"Guardian","bungieGlobalDisplayNameCode":1993},
-		{"membershipType":3,"membershipId":"steam","crossSaveOverride":2,"bungieGlobalDisplayName":"Guardian","bungieGlobalDisplayNameCode":1993}
+		{"membershipType":2,"membershipId":"psn","crossSaveOverride":3,"bungieGlobalDisplayName":"Guardian","bungieGlobalDisplayNameCode":1993},
+		{"membershipType":3,"membershipId":"steam","crossSaveOverride":3,"bungieGlobalDisplayName":"Guardian","bungieGlobalDisplayNameCode":1993}
 	]}}`
 
 func TestGetCurrentUser_SendsBearerAndPrefersPrimaryMembership(t *testing.T) {
@@ -76,5 +76,56 @@ func TestCall_SendsNoAuthorizationWithoutToken(t *testing.T) {
 	})
 	if _, err := call[echo](context.Background(), c, http.MethodGet, "/Platform/Test/", nil); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Pins precedence only: primaryMembershipId wins even when Cross Save ordering points elsewhere.
+// Real data keeps these consistent.
+func TestGetCurrentUser_PrimaryMembershipIDWinsOverCrossSave(t *testing.T) {
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"ErrorCode":1,"Response":{
+			"bungieNetUser":{"membershipId":"b"},
+			"primaryMembershipId":"steam",
+			"destinyMemberships":[
+				{"membershipType":2,"membershipId":"psn","crossSaveOverride":2},
+				{"membershipType":3,"membershipId":"steam"}
+			]}}`))
+	})
+	u, err := c.GetCurrentUser(context.Background(), "tok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Destiny.MembershipID != "steam" {
+		t.Errorf("destiny = %+v, want steam", u.Destiny)
+	}
+}
+
+func TestGetCurrentUser_NameFallsBackToCachedGlobalName(t *testing.T) {
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"ErrorCode":1,"Response":{
+			"bungieNetUser":{"membershipId":"b","uniqueName":"Legacy","cachedBungieGlobalDisplayName":"Cached","cachedBungieGlobalDisplayNameCode":42},
+			"destinyMemberships":[{"membershipType":3,"membershipId":"steam"}]}}`))
+	})
+	u, err := c.GetCurrentUser(context.Background(), "tok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.BungieName != "Cached#0042" {
+		t.Errorf("name = %q", u.BungieName)
+	}
+}
+
+func TestGetCurrentUser_NameEmptyWhenNoSources(t *testing.T) {
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"ErrorCode":1,"Response":{
+			"bungieNetUser":{"membershipId":"b"},
+			"destinyMemberships":[{"membershipType":3,"membershipId":"steam"}]}}`))
+	})
+	u, err := c.GetCurrentUser(context.Background(), "tok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.BungieName != "" {
+		t.Errorf("name = %q, want empty", u.BungieName)
 	}
 }

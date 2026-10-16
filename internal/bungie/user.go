@@ -19,8 +19,10 @@ type membershipsResponse struct {
 	DestinyMemberships  []UserInfoCard `json:"destinyMemberships"`
 	PrimaryMembershipID string         `json:"primaryMembershipId"`
 	BungieNetUser       struct {
-		MembershipID string `json:"membershipId"`
-		UniqueName   string `json:"uniqueName"`
+		MembershipID                      string `json:"membershipId"`
+		UniqueName                        string `json:"uniqueName"`
+		CachedBungieGlobalDisplayName     string `json:"cachedBungieGlobalDisplayName"`
+		CachedBungieGlobalDisplayNameCode int    `json:"cachedBungieGlobalDisplayNameCode"`
 	} `json:"bungieNetUser"`
 }
 
@@ -41,9 +43,15 @@ func (c *Client) GetCurrentUser(ctx context.Context, accessToken string) (Curren
 			break
 		}
 	}
-	name := m.BungieNetUser.UniqueName
-	if card.BungieGlobalDisplayName != "" {
+	// uniqueName is legacy and not reliably "Name#1234", so it is the last resort.
+	var name string
+	switch {
+	case card.BungieGlobalDisplayName != "":
 		name = FormatBungieName(card.BungieGlobalDisplayName, card.BungieGlobalDisplayNameCode)
+	case m.BungieNetUser.CachedBungieGlobalDisplayName != "":
+		name = FormatBungieName(m.BungieNetUser.CachedBungieGlobalDisplayName, m.BungieNetUser.CachedBungieGlobalDisplayNameCode)
+	default:
+		name = m.BungieNetUser.UniqueName
 	}
 	return CurrentUser{BungieNetMembershipID: m.BungieNetUser.MembershipID, BungieName: name, Destiny: card}, nil
 }
