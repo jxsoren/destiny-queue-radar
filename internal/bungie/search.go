@@ -61,11 +61,17 @@ func (c *Client) SearchByBungieName(ctx context.Context, name string, code int) 
 	if len(cards) == 0 {
 		return UserInfoCard{}, fmt.Errorf("%s: %w", FormatBungieName(name, code), ErrPlayerNotFound)
 	}
+	// No matching Cross Save override (single platform, or multi-platform without Cross Save): first card.
+	return crossSavePrimary(cards), nil
+}
+
+// crossSavePrimary returns the card Cross Save marks as active, or the first card.
+// cards must be non-empty.
+func crossSavePrimary(cards []UserInfoCard) UserInfoCard {
 	for _, card := range cards {
 		if card.CrossSaveOverride != 0 && card.MembershipType == card.CrossSaveOverride {
-			return card, nil
+			return card
 		}
 	}
-	// No matching Cross Save override (single platform, or multi-platform without Cross Save): use the first card.
-	return cards[0], nil
+	return cards[0]
 }

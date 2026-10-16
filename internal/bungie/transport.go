@@ -66,10 +66,15 @@ type envelope struct {
 	ThrottleSeconds int             `json:"ThrottleSeconds"`
 }
 
-// call performs a Platform request and decodes the envelope's Response into T.
+// call performs an unauthenticated Platform request and decodes the envelope's Response into T.
 func call[T any](ctx context.Context, c *Client, method, path string, body any) (T, error) {
+	return callAs[T](ctx, c, "", method, path, body)
+}
+
+// callAs is call with an OAuth access token; an empty token sends no Authorization header.
+func callAs[T any](ctx context.Context, c *Client, token, method, path string, body any) (T, error) {
 	var out T
-	raw, err := c.callRaw(ctx, method, path, body)
+	raw, err := c.callRawAs(ctx, token, method, path, body)
 	if err != nil {
 		return out, err
 	}
@@ -79,8 +84,13 @@ func call[T any](ctx context.Context, c *Client, method, path string, body any) 
 	return out, nil
 }
 
-// callRaw performs a Platform request with retries and returns the raw Response JSON.
+// callRaw performs an unauthenticated Platform request with retries and returns the raw Response JSON.
 func (c *Client) callRaw(ctx context.Context, method, path string, body any) (json.RawMessage, error) {
+	return c.callRawAs(ctx, "", method, path, body)
+}
+
+// callRawAs performs a Platform request with retries, sending token as a bearer when non-empty.
+func (c *Client) callRawAs(ctx context.Context, token, method, path string, body any) (json.RawMessage, error) {
 	var payload []byte
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -95,7 +105,7 @@ func (c *Client) callRaw(ctx context.Context, method, path string, body any) (js
 				return nil, err
 			}
 		}
-		raw, err := c.callOnce(ctx, method, path, payload)
+		raw, err := c.callOnce(ctx, token, method, path, payload)
 		if err == nil {
 			return raw, nil
 		}
@@ -122,7 +132,7 @@ func (c *Client) callRaw(ctx context.Context, method, path string, body any) (js
 	}
 }
 
-func (c *Client) callOnce(ctx context.Context, method, path string, payload []byte) (json.RawMessage, error) {
+func (c *Client) callOnce(ctx context.Context, token, method, path string, payload []byte) (json.RawMessage, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.requestTimeout)
 	defer cancel()
 	var body io.Reader
@@ -134,6 +144,9 @@ func (c *Client) callOnce(ctx context.Context, method, path string, payload []by
 		return nil, fmt.Errorf("bungie: build request %s: %w", path, err)
 	}
 	req.Header.Set("X-API-Key", c.apiKey)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
