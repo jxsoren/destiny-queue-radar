@@ -1,3 +1,5 @@
+import { order } from './useReveal';
+
 const FACTS: readonly [label: string, value: string][] = [
   ['Watchlist', 'Up to 50 players'],
   ['Who can see it', 'Only you'],
@@ -36,12 +38,12 @@ export function Private() {
         Privacy
       </h2>
       <div className="about-row">
-        <p className="about-paragraph">
+        <p data-reveal style={order(0)} className="about-paragraph">
           Your list is yours. Nobody else can see who you watch, and Rook#2093 is never told, contacted or flagged. There
           are no shared lists, no report counts and no public pages about anyone. A private profile stays private: it shows
           as Private, and we never work around it through the player’s fireteam.
         </p>
-        <dl className="about-facts">
+        <dl data-reveal style={order(1)} className="about-facts">
           {FACTS.map(([label, value]) => (
             <div key={label}>
               <dt>{label}</dt>
@@ -51,12 +53,12 @@ export function Private() {
         </dl>
       </div>
       <div className="about-row about-row-questions">
-        <h2 id="questions" className="about-word">
+        <h2 id="questions" data-reveal style={order(0)} className="about-word">
           Questions
         </h2>
         <dl className="about-questions">
-          {QUESTIONS.map(([q, a]) => (
-            <div key={q}>
+          {QUESTIONS.map(([q, a], i) => (
+            <div key={q} data-reveal style={order(1 + (i % 2))}>
               <dt>{q}</dt>
               <dd>{a}</dd>
             </div>

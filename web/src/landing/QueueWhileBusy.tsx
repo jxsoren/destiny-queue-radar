@@ -1,5 +1,6 @@
 import { PlayerCard } from '../board/PlayerCard';
 import { Arrow } from './Arrow';
+import { order } from './useReveal';
 import { ROOK_IN_MATCH, ROOK_QUEUING, SAMPLE_NOW } from './fragments/sample';
 
 const COLUMNS = ['What Queue Radar sees', 'How sure', 'What to do'] as const;
@@ -19,16 +20,18 @@ const STATES: readonly [state: string, sees: string, sure: string, todo: string]
 export function QueueWhileBusy() {
   return (
     <section id="columns" aria-labelledby="columns-title" className="features">
-      <h2 id="columns-title" className="section-title">
+      <h2 id="columns-title" data-reveal style={order(0)} className="section-title">
         Queue while they’re busy
       </h2>
       <div className="features-split">
-        <p className="statement">
+        <p data-reveal style={order(1)} className="statement">
           “Likely queuing” is our guess, not Bungie’s queue. Bungie doesn’t say who is matchmaking, so a player back in
           orbit within five minutes of a PvP match shows here until the five minutes run out.
         </p>
         <div
           data-ui
+          data-reveal="moment"
+          style={order(2)}
           role="figure"
           aria-label="Rook#2093 at the end of his match, before and after"
           className="moment bg-ground text-ink"
@@ -42,7 +45,7 @@ export function QueueWhileBusy() {
           <span className="moment-arrow text-dim">
             <Arrow size={24} />
           </span>
-          <div className="moment-col">
+          <div className="moment-col moment-after">
             <p className="tele px-3 py-2 text-dim">QUEUING?</p>
             <ul className="grid gap-px bg-line">
               <PlayerCard player={ROOK_QUEUING} now={SAMPLE_NOW} managing={false} />
@@ -50,7 +53,7 @@ export function QueueWhileBusy() {
           </div>
         </div>
       </div>
-      <table className="states">
+      <table data-reveal="picture" style={order(3)} className="states">
         <thead>
           <tr>
             <th scope="col">
@@ -64,8 +67,8 @@ export function QueueWhileBusy() {
           </tr>
         </thead>
         <tbody>
-          {STATES.map(([state, ...answers]) => (
-            <tr key={state}>
+          {STATES.map(([state, ...answers], row) => (
+            <tr key={state} data-reveal="row" style={order(row)}>
               <th scope="row">{state}</th>
               {answers.map((a, i) => (
                 <td key={COLUMNS[i]} data-label={COLUMNS[i]}>

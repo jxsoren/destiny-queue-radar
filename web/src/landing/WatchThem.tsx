@@ -3,6 +3,7 @@ import { PlayerCard } from '../board/PlayerCard';
 import { EmptyBoard } from '../board/TrackSlot';
 import { LobbyStill } from './fragments/Lobby';
 import { ROOK_CHECKING, ROOK_ID, SAMPLE_NOW } from './fragments/sample';
+import { order } from './useReveal';
 
 const STOPS = [
   { name: 'Match ends', clause: 'First, the match ends' },
@@ -37,19 +38,21 @@ export function WatchThem() {
   return (
     <section id="how" aria-labelledby="how-clause" className="how">
       <div className="how-words">
-        <h2 id="how-clause" className="how-clause">
+        <h2 id="how-clause" data-reveal style={order(0)} className="how-clause">
           {current.clause}
         </h2>
-        <p className="how-note">
+        <p data-reveal style={order(1)} className="how-note">
           Not in your last match? Type their Bungie Name, like Rook#2093, and pick them from Bungie’s search.
         </p>
       </div>
-      <div className="how-stage">
+      <div data-reveal="picture" style={order(2)} className="how-stage">
         <div data-ui data-testid="how-fragment" className="how-fragment bg-ground text-ink">
-          <Still stop={stop} onStop={setStop} />
+          <div key={stop} className="how-still">
+            <Still stop={stop} onStop={setStop} />
+          </div>
         </div>
       </div>
-      <div className="how-control" style={progress}>
+      <div data-reveal style={{ ...progress, ...order(3) }} className="how-control">
         <div className="how-track">
           <span aria-hidden="true" className="how-track-fill" />
           <input
