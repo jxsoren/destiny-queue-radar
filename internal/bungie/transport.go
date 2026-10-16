@@ -17,6 +17,12 @@ import (
 // maxThrottleWait caps how long a Bungie-requested throttle delay can block a call.
 const maxThrottleWait = 60 * time.Second
 
+// Limiter paces requests across every caller of a Client. *ratelimit.Limiter implements it.
+type Limiter interface {
+	Wait(ctx context.Context) error
+	PauseUntil(t time.Time)
+}
+
 type Client struct {
 	apiKey         string
 	baseURL        string
@@ -26,6 +32,8 @@ type Client struct {
 	maxRetries     int
 	baseBackoff    time.Duration
 	sleep          func(context.Context, time.Duration) error
+	limiter        Limiter
+	now            func() time.Time
 }
 
 func NewClient(apiKey, baseURL string, hc *http.Client) *Client {
@@ -41,8 +49,13 @@ func NewClient(apiKey, baseURL string, hc *http.Client) *Client {
 		maxRetries:     3,
 		baseBackoff:    500 * time.Millisecond,
 		sleep:          sleepCtx,
+		now:            time.Now,
 	}
 }
+
+// SetLimiter makes every attempt (including retries) wait for l. Bungie throttle responses
+// pause l for everyone instead of sleeping only this caller.
+func (c *Client) SetLimiter(l Limiter) { c.limiter = l }
 
 type envelope struct {
 	Response        json.RawMessage `json:"Response"`
@@ -76,6 +89,11 @@ func (c *Client) callRaw(ctx context.Context, method, path string, body any) (js
 		payload = b
 	}
 	for attempt := 0; ; attempt++ {
+		if c.limiter != nil {
+			if err := c.limiter.Wait(ctx); err != nil {
+				return nil, err
+			}
+		}
 		raw, err := c.callOnce(ctx, method, path, payload)
 		if err == nil {
 			return raw, nil
@@ -86,6 +104,11 @@ func (c *Client) callRaw(ctx context.Context, method, path string, body any) (js
 		wait, retry := c.retryDelay(err, attempt)
 		if !retry {
 			return nil, err
+		}
+		if c.limiter != nil && IsThrottled(err) {
+			// Pause every caller; the next Wait absorbs the delay.
+			c.limiter.PauseUntil(c.now().Add(wait))
+			continue
 		}
 		if err := c.sleep(ctx, wait); err != nil {
 			return nil, err
