@@ -3,6 +3,7 @@ package ratelimit
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 )
@@ -18,11 +19,15 @@ type Limiter struct {
 
 // New returns a limiter allowing perSecond requests per second.
 func New(perSecond float64) *Limiter {
-	if perSecond <= 0 {
-		panic("ratelimit: perSecond must be > 0")
+	if !(perSecond > 0) || math.IsInf(perSecond, 0) {
+		panic("ratelimit: perSecond must be finite and > 0")
+	}
+	interval := time.Duration(float64(time.Second) / perSecond)
+	if interval <= 0 {
+		panic("ratelimit: perSecond is too large")
 	}
 	return &Limiter{
-		interval: time.Duration(float64(time.Second) / perSecond),
+		interval: interval,
 		now:      time.Now,
 		sleep:    sleepCtx,
 	}
@@ -45,7 +50,8 @@ func (l *Limiter) Wait(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// PauseUntil delays every future slot until at least t.
+// PauseUntil delays every future slot until at least t. It does not delay slots already
+// reserved by in-progress Wait calls.
 func (l *Limiter) PauseUntil(t time.Time) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

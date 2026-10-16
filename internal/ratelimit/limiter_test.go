@@ -2,6 +2,9 @@ package ratelimit
 
 import (
 	"context"
+	"math"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 )
@@ -44,10 +47,14 @@ func TestPauseUntil_DelaysNextSlot(t *testing.T) {
 }
 
 func TestPauseUntil_EarlierThanNextSlotIsIgnored(t *testing.T) {
-	l, slept, now := newTestLimiter(1) // one slot per second
-	l.Wait(context.Background())       // immediate; next slot at +1s
+	l, slept, now := newTestLimiter(1)                   // one slot per second
+	if err := l.Wait(context.Background()); err != nil { // immediate; next slot at +1s
+		t.Fatal(err)
+	}
 	l.PauseUntil(now.Add(500 * time.Millisecond))
-	l.Wait(context.Background())
+	if err := l.Wait(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if len(*slept) != 1 || (*slept)[0] != time.Second {
 		t.Errorf("sleeps = %v, want [1s]", *slept)
 	}
@@ -76,11 +83,48 @@ func TestWait_RealSleepHonorsCancel(t *testing.T) {
 	}
 }
 
-func TestNew_PanicsOnNonPositiveRate(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Error("expected panic")
-		}
-	}()
-	New(0)
+func TestNew_PanicsOnInvalidRate(t *testing.T) {
+	for _, rate := range []float64{0, -1, math.NaN(), math.Inf(1), 1e12} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("New(%v): expected panic", rate)
+				}
+			}()
+			New(rate)
+		}()
+	}
+}
+
+func TestWait_ConcurrentCallersGetDistinctSlots(t *testing.T) {
+	l := New(10)
+	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	l.now = func() time.Time { return now }
+	var mu sync.Mutex
+	var slept []time.Duration
+	l.sleep = func(_ context.Context, d time.Duration) error {
+		mu.Lock()
+		slept = append(slept, d)
+		mu.Unlock()
+		return nil
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := l.Wait(context.Background()); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	slices.Sort(slept)
+	var want []time.Duration // the zero-delay call records nothing
+	for i := 1; i < 8; i++ {
+		want = append(want, time.Duration(i)*100*time.Millisecond)
+	}
+	if !slices.Equal(slept, want) {
+		t.Errorf("delays = %v, want %v", slept, want)
+	}
 }

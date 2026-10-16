@@ -54,7 +54,8 @@ func NewClient(apiKey, baseURL string, hc *http.Client) *Client {
 }
 
 // SetLimiter makes every attempt (including retries) wait for l. Bungie throttle responses
-// pause l for everyone instead of sleeping only this caller.
+// pause l for everyone instead of sleeping only this caller. Call before the Client is shared
+// between goroutines.
 func (c *Client) SetLimiter(l Limiter) { c.limiter = l }
 
 type envelope struct {
@@ -101,14 +102,19 @@ func (c *Client) callRaw(ctx context.Context, method, path string, body any) (js
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		if c.limiter != nil {
+			if pause, ok := c.throttleWait(err, attempt); ok {
+				// Pause every caller, even when this was the final attempt.
+				c.limiter.PauseUntil(c.now().Add(pause))
+				if _, retry := c.retryDelay(err, attempt); !retry {
+					return nil, err
+				}
+				continue // the next Wait absorbs the delay
+			}
+		}
 		wait, retry := c.retryDelay(err, attempt)
 		if !retry {
 			return nil, err
-		}
-		if c.limiter != nil && IsThrottled(err) {
-			// Pause every caller; the next Wait absorbs the delay.
-			c.limiter.PauseUntil(c.now().Add(wait))
-			continue
 		}
 		if err := c.sleep(ctx, wait); err != nil {
 			return nil, err
@@ -159,6 +165,22 @@ func (c *Client) callOnce(ctx context.Context, method, path string, payload []by
 		}
 	}
 	return env.Response, nil
+}
+
+// throttleWait reports how long the shared limiter should pause for a throttle signal:
+// Bungie's ThrottleSeconds (capped) or, for a bare HTTP 429, this attempt's backoff.
+func (c *Client) throttleWait(err error, attempt int) (time.Duration, bool) {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return 0, false
+	}
+	switch {
+	case apiErr.ThrottleSeconds > 0:
+		return min(time.Duration(apiErr.ThrottleSeconds)*time.Second, maxThrottleWait), true
+	case apiErr.Code == 0 && apiErr.HTTPStatus == http.StatusTooManyRequests:
+		return c.backoff(attempt), true
+	}
+	return 0, false
 }
 
 func (c *Client) retryDelay(err error, attempt int) (time.Duration, bool) {
