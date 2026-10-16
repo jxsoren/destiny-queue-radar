@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -190,6 +191,59 @@ func TestAddWatch_CapHoldsUnderConcurrency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(list) != MaxWatchlist {
+		t.Errorf("len(list) = %d, want %d", len(list), MaxWatchlist)
+	}
+}
+
+// Deterministic guard that AddWatch serializes on the user row: while another transaction holds
+// that lock with an uncommitted 50th entry, a concurrent AddWatch must block, then see the full list.
+func TestAddWatch_CapLockBlocksConcurrentAdd(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	u := mustUser(t, s, "u1")
+	for i := 0; i < MaxWatchlist-1; i++ {
+		must(t, s.AddWatch(ctx, u.ID, ref(fmt.Sprintf("p%02d", i)), "", SourceSearch))
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	must(t, err)
+	defer tx.Rollback(ctx)
+	var id int64
+	must(t, tx.QueryRow(ctx, `SELECT id FROM users WHERE id = $1 FOR UPDATE`, u.ID).Scan(&id))
+	_, err = tx.Exec(ctx, `INSERT INTO players (membership_id, membership_type) VALUES ('held', 3) ON CONFLICT DO NOTHING`)
+	must(t, err)
+	_, err = tx.Exec(ctx, `INSERT INTO watch_entries (user_id, membership_id, source) VALUES ($1, 'held', 'search')`, u.ID)
+	must(t, err)
+
+	done := make(chan error, 1)
+	go func() { done <- s.AddWatch(ctx, u.ID, ref("late"), "", SourceSearch) }()
+
+	deadline := time.After(5 * time.Second)
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for waiting := false; !waiting; {
+		select {
+		case err := <-done:
+			t.Fatalf("AddWatch did not block on the user row lock (returned %v)", err)
+		case <-deadline:
+			t.Fatal("timed out waiting for AddWatch to block on a lock")
+		case <-tick.C:
+			must(t, s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted)`).Scan(&waiting))
+		}
+	}
+
+	must(t, tx.Commit(ctx))
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrWatchlistFull) {
+			t.Errorf("late AddWatch err = %v, want ErrWatchlistFull", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("late AddWatch never returned after commit")
+	}
+	list, err := s.Watchlist(ctx, u.ID)
+	must(t, err)
 	if len(list) != MaxWatchlist {
 		t.Errorf("len(list) = %d, want %d", len(list), MaxWatchlist)
 	}
