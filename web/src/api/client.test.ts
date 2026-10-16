@@ -58,6 +58,20 @@ describe('requests', () => {
 });
 
 describe('errors', () => {
+  test('a rejected fetch becomes an ApiError with status 0', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const err = await api.watchlist().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 0, message: 'network error', retryAfter: null, reauth: false });
+  });
+
+  test('a 200 with a non-JSON body becomes an ApiError', async () => {
+    fetchMock.mockResolvedValue(new Response('<html>oops</html>', { status: 200 }));
+    const err = await api.watchlist().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 200, message: 'invalid response' });
+  });
+
   test('carry status, message and Retry-After', async () => {
     fetchMock.mockResolvedValue(respond(429, { error: 'too many lookups; slow down' }, { 'Retry-After': '12' }));
     const err = await api.search('A#0001').catch((e: unknown) => e);

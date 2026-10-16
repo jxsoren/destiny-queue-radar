@@ -30,6 +30,7 @@ interface RequestOptions {
   quiet401?: boolean;
 }
 
+/** Every failure is an ApiError; status 0 means the server was unreachable. */
 async function request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (method !== 'GET') headers['X-Requested-With'] = 'dqr'; // CSRF header (main spec §7.3)
@@ -38,7 +39,12 @@ async function request<T>(method: string, path: string, opts: RequestOptions = {
     headers['Content-Type'] = 'application/json';
     body = JSON.stringify(opts.body);
   }
-  const res = await fetch(path, { method, headers, body, credentials: 'same-origin' });
+  let res: Response;
+  try {
+    res = await fetch(path, { method, headers, body, credentials: 'same-origin' });
+  } catch {
+    throw new ApiError(0, 'network error', null, false);
+  }
   if (!res.ok) {
     const data: { error?: unknown; reauth?: unknown } = await res.json().catch(() => ({}));
     const ra = res.headers.get('Retry-After');
@@ -49,7 +55,11 @@ async function request<T>(method: string, path: string, opts: RequestOptions = {
     throw err;
   }
   if (res.status === 201 || res.status === 202 || res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new ApiError(res.status, 'invalid response', null, false);
+  }
 }
 
 export const api = {

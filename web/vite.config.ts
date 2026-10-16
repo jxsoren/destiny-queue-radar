@@ -2,8 +2,9 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 // The Go server. Its certificate is self-signed in development, so only this proxy skips
-// verification; the browser itself talks to the Vite server.
+// verification, and only for a local backend; the browser itself talks to the Vite server.
 const backend = process.env.DQR_BACKEND ?? 'https://localhost:8443';
+const insecure = /^https:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(backend);
 
 export default defineConfig({
   plugins: [react()],
@@ -16,8 +17,8 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      '/api': { target: backend, secure: false },
-      '/auth': { target: backend, secure: false },
+      '/api': { target: backend, secure: !insecure },
+      '/auth': { target: backend, secure: !insecure },
     },
   },
   test: {
