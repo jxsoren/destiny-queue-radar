@@ -14,7 +14,7 @@ import (
 
 const (
 	SessionCookie = "__Host-dqr_session"
-	StateCookie   = "dqr_oauth_state"
+	StateCookie   = "__Host-dqr_oauth_state"
 	SessionTTL    = 30 * 24 * time.Hour
 
 	stateTTL      = 10 * time.Minute
@@ -56,12 +56,12 @@ func ClearSessionCookie() *http.Cookie {
 // StateCookieFor holds the OAuth state between /auth/login and /auth/callback. SameSite=Lax
 // still sends it on Bungie's top-level redirect back to us.
 func StateCookieFor(state string) *http.Cookie {
-	return &http.Cookie{Name: StateCookie, Value: state, Path: "/auth/", MaxAge: int(stateTTL.Seconds()),
+	return &http.Cookie{Name: StateCookie, Value: state, Path: "/", MaxAge: int(stateTTL.Seconds()),
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode}
 }
 
 func ClearStateCookie() *http.Cookie {
-	return &http.Cookie{Name: StateCookie, Path: "/auth/", MaxAge: -1,
+	return &http.Cookie{Name: StateCookie, Path: "/", MaxAge: -1,
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode}
 }
 

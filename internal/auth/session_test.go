@@ -36,10 +36,10 @@ func TestCookies(t *testing.T) {
 		t.Errorf("clear cookie = %+v", c)
 	}
 	s := StateCookieFor("st")
-	if s.Name != StateCookie || s.Value != "st" || !s.HttpOnly || !s.Secure || s.MaxAge != 600 || s.Path != "/auth/" {
+	if s.Name != StateCookie || s.Value != "st" || !s.HttpOnly || !s.Secure || s.MaxAge != 600 || s.Path != "/" {
 		t.Errorf("state cookie = %+v", s)
 	}
-	if c := ClearStateCookie(); c.Name != StateCookie || c.MaxAge >= 0 || c.Path != "/auth/" {
+	if c := ClearStateCookie(); c.Name != StateCookie || c.MaxAge >= 0 || c.Path != "/" {
 		t.Errorf("clear state cookie = %+v", c)
 	}
 }
@@ -69,5 +69,13 @@ func TestAuthorizeURL(t *testing.T) {
 func TestSessionCookieName_UsesHostPrefix(t *testing.T) {
 	if SessionCookie != "__Host-dqr_session" {
 		t.Errorf("SessionCookie = %q", SessionCookie)
+	}
+}
+
+func TestCookieNames_UseHostPrefix(t *testing.T) {
+	for _, n := range []string{SessionCookie, StateCookie} {
+		if !strings.HasPrefix(n, "__Host-") {
+			t.Errorf("%q lacks the __Host- prefix", n)
+		}
 	}
 }
