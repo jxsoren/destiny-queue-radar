@@ -18,12 +18,14 @@ var activities = map[uint32]manifest.Activity{
 	300:               {Hash: 300, Name: "The Tower"},
 	400:               {Hash: 400, Name: "Salvation's Edge"},
 	500:               {Hash: 500, Name: "Mystery PvP", IsPvP: true},
+	600:               {Hash: 600, Name: "Strange Place"},
 }
 
 var modes = map[uint32]manifest.Mode{
 	84: {Hash: 84, Name: "Trials of Osiris", Category: manifest.CategoryPvP},
 	87: {Hash: 87, Name: "Social", Category: manifest.CategoryNone},
 	4:  {Hash: 4, Name: "Raid", Category: manifest.CategoryPvE},
+	5:  {Hash: 5, Name: "AllPvP", Category: manifest.CategoryPvP},
 }
 
 func (fakeLookup) Activity(h uint32) (manifest.Activity, bool) {
@@ -143,4 +145,93 @@ func TestClassify_EndedMatchFallsBackToModeName(t *testing.T) {
 	if got.LastPvPPlaylist != "Trials of Osiris" {
 		t.Errorf("LastPvPPlaylist = %q, want the mode name", got.LastPvPPlaylist)
 	}
+}
+
+func TestClassify_Hardening(t *testing.T) {
+	c := New(fakeLookup{})
+	inTrials := status.Status{State: status.InMatch, Activity: "Burnout", Mode: "Trials of Osiris", Playlist: "Trials of Osiris", StartedAt: &started}
+
+	t.Run("missing transitory component keeps prev", func(t *testing.T) {
+		p := profile(false, 100, 84, 200)
+		p.ProfileTransitoryData.Privacy = bungie.PrivacyNone
+		got := c.Classify(p, inTrials, now)
+		if !got.Equal(inTrials) {
+			t.Errorf("got %+v, want prev %+v", got, inTrials)
+		}
+	})
+	t.Run("transitory flagged private but data visible", func(t *testing.T) {
+		p := profile(true, 100, 84, 200)
+		p.ProfileTransitoryData.Privacy = bungie.PrivacyPrivate
+		if got := c.Classify(p, status.Status{}, now); got.State != status.InMatch {
+			t.Errorf("state = %s, want IN_MATCH", got.State)
+		}
+	})
+	t.Run("match, PvE, then orbit is not queuing", func(t *testing.T) {
+		afterPvE := c.Classify(profile(true, 400, 4, 0), inTrials, now)
+		got := c.Classify(profile(true, orbitActivityHash, 0, 0), afterPvE, now.Add(time.Minute))
+		if got.State != status.NotInPvP {
+			t.Errorf("state = %s, want NOT_IN_PVP", got.State)
+		}
+	})
+	t.Run("orbit then tower stays queuing", func(t *testing.T) {
+		inOrbit := c.Classify(profile(true, orbitActivityHash, 0, 0), inTrials, now)
+		got := c.Classify(profile(true, 300, 87, 0), inOrbit, now.Add(time.Minute))
+		if got.State != status.LikelyQueuing {
+			t.Errorf("state = %s, want LIKELY_QUEUING", got.State)
+		}
+	})
+	t.Run("queuing to match keeps end", func(t *testing.T) {
+		ended := now.Add(-time.Minute)
+		prev := status.Status{State: status.LikelyQueuing, LastPvPEndedAt: &ended, LastPvPPlaylist: "Trials of Osiris"}
+		got := c.Classify(profile(true, 100, 84, 200), prev, now)
+		if got.State != status.InMatch || got.LastPvPEndedAt == nil || !got.LastPvPEndedAt.Equal(ended) {
+			t.Errorf("got %+v", got)
+		}
+	})
+	t.Run("unknown activity and mode is not social, never queuing", func(t *testing.T) {
+		got := c.Classify(profile(true, 999, 998, 0), inTrials, now)
+		if got.State != status.NotInPvP || got.Place != status.PlaceNone {
+			t.Errorf("got %+v, want NOT_IN_PVP with no place", got)
+		}
+	})
+	t.Run("parent mode hash resolves to PvP", func(t *testing.T) {
+		p := profile(true, 999, 998, 0)
+		a := p.CharacterActivities.Data["c1"]
+		a.CurrentActivityModeHashes = []uint32{998, 5}
+		p.CharacterActivities.Data["c1"] = a
+		if got := c.Classify(p, status.Status{}, now); got.State != status.InMatch {
+			t.Errorf("state = %s, want IN_MATCH", got.State)
+		}
+	})
+	t.Run("social-category mode but PvP activity", func(t *testing.T) {
+		if got := c.Classify(profile(true, 500, 87, 0), status.Status{}, now); got.State != status.InMatch {
+			t.Errorf("state = %s, want IN_MATCH", got.State)
+		}
+	})
+	t.Run("back-to-back matches record an end", func(t *testing.T) {
+		next := now.Add(-time.Minute)
+		p := profile(true, 100, 84, 200)
+		a := p.CharacterActivities.Data["c1"]
+		a.DateActivityStarted = next
+		p.CharacterActivities.Data["c1"] = a
+		got := c.Classify(p, inTrials, now)
+		if got.State != status.InMatch || got.LastPvPEndedAt == nil || !got.LastPvPEndedAt.Equal(next) || got.LastPvPPlaylist != "Trials of Osiris" {
+			t.Errorf("got %+v", got)
+		}
+	})
+	t.Run("match to private records an end", func(t *testing.T) {
+		p := profile(false, 0, 0, 0)
+		p.ProfileTransitoryData.Privacy = bungie.PrivacyPrivate
+		got := c.Classify(p, inTrials, now)
+		if got.State != status.Private || got.LastPvPEndedAt == nil || !got.LastPvPEndedAt.Equal(now) {
+			t.Errorf("got %+v", got)
+		}
+	})
+	t.Run("window boundary is exclusive", func(t *testing.T) {
+		ended := now.Add(-5 * time.Minute)
+		prev := status.Status{State: status.LikelyQueuing, LastPvPEndedAt: &ended, LastPvPPlaylist: "Trials of Osiris"}
+		if got := c.Classify(profile(true, orbitActivityHash, 0, 0), prev, now); got.State != status.NotInPvP {
+			t.Errorf("state = %s, want NOT_IN_PVP", got.State)
+		}
+	})
 }
