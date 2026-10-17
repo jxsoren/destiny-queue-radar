@@ -77,10 +77,16 @@ func run(log *slog.Logger, flush func()) error {
 	}
 	defer st.Close()
 
+	var bungieHTTP *http.Client // nil: the bungie package default
+	if cfg.BungieLogBodyBytes > 0 {
+		// OAuth token requests use auth's own client and are never logged: they carry secrets.
+		bungieHTTP = &http.Client{Transport: bungie.NewBodyLogTransport(nil, log, cfg.BungieLogBodyBytes)}
+		log.Warn("logging Bungie request and response bodies", "max_bytes", cfg.BungieLogBodyBytes)
+	}
 	limiter := ratelimit.New(bungieRequestsPerSecond)
-	client := bungie.NewClient(cfg.BungieAPIKey, cfg.BungieBaseURL, nil)
+	client := bungie.NewClient(cfg.BungieAPIKey, cfg.BungieBaseURL, bungieHTTP)
 	client.SetLimiter(limiter)
-	stats := bungie.NewClient(cfg.BungieAPIKey, cfg.StatsBaseURL, nil)
+	stats := bungie.NewClient(cfg.BungieAPIKey, cfg.StatsBaseURL, bungieHTTP)
 	stats.SetLimiter(limiter)
 
 	log.Info("loading manifest")

@@ -2,6 +2,7 @@ package logging
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+
+	"github.com/jxsoren/destiny-queue-radar/internal/opid"
 )
 
 func envFrom(m map[string]string) func(string) string {
@@ -98,7 +101,7 @@ func newTestHandler(t *testing.T) (*slog.Logger, *sentry.MockTransport, *bytes.B
 	}
 	var buf bytes.Buffer
 	next := slog.NewTextHandler(&buf, nil)
-	return slog.New(newSentryHandler(next, sentry.NewHub(client, sentry.NewScope()))), tr, &buf
+	return slog.New(WithRequestID(newSentryHandler(next, sentry.NewHub(client, sentry.NewScope())))), tr, &buf
 }
 
 func TestSentryHandler_ErrorBecomesEvent(t *testing.T) {
@@ -181,5 +184,37 @@ func TestThrottle_AllowsAgainAfterInterval(t *testing.T) {
 		if got := th.allow("m", t0.Add(c.at)); got != c.want {
 			t.Errorf("allow at +%s = %t, want %t", c.at, got, c.want)
 		}
+	}
+}
+
+func TestSetup_AddsRequestIDFromContext(t *testing.T) {
+	var buf bytes.Buffer
+	log, flush, err := Setup(envFrom(map[string]string{"LOG_FORMAT": "json"}), &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer flush()
+	log.InfoContext(opid.With(context.Background(), "abc123"), "polled")
+	log.Info("no context")
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	var first, second map[string]any
+	json.Unmarshal([]byte(lines[0]), &first)
+	json.Unmarshal([]byte(lines[1]), &second)
+	if first["request_id"] != "abc123" {
+		t.Errorf("line with id = %v", first)
+	}
+	if _, ok := second["request_id"]; ok {
+		t.Errorf("line without id = %v", second)
+	}
+}
+
+func TestSentryHandler_RequestIDIsATag(t *testing.T) {
+	log, tr, _ := newTestHandler(t)
+	log.ErrorContext(opid.With(context.Background(), "abc123"), "request failed")
+
+	ev := tr.Events()[0]
+	if ev.Tags["request_id"] != "abc123" {
+		t.Errorf("tags = %v", ev.Tags)
 	}
 }

@@ -13,6 +13,8 @@ type entry struct {
 	player     store.Player
 	lastPolled time.Time
 	manualAt   time.Time // non-zero while a manual refresh is pending
+	manualOp   string    // request ID of the pending manual refresh
+	pollOp     string    // request ID of the poll in flight
 	inFlight   bool
 }
 

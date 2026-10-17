@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+
+	"github.com/jxsoren/destiny-queue-radar/internal/opid"
 )
 
 const (
@@ -37,13 +39,13 @@ func Setup(getenv func(string) string, w io.Writer) (*slog.Logger, func(), error
 		return nil, nil, errors.New(`LOG_FORMAT must be "text" or "json"`)
 	}
 	if get("SENTRY_DSN") == "" {
-		return slog.New(h), func() {}, nil
+		return slog.New(WithRequestID(h)), func() {}, nil
 	}
 	if err := sentry.Init(sentryOptions(getenv)); err != nil {
 		return nil, nil, fmt.Errorf("sentry init: %w", err)
 	}
 	flush := func() { sentry.Flush(flushTimeout) }
-	return slog.New(newSentryHandler(h, sentry.CurrentHub())), flush, nil
+	return slog.New(WithRequestID(newSentryHandler(h, sentry.CurrentHub()))), flush, nil
 }
 
 // sentryOptions reads SENTRY_DSN, SENTRY_RELEASE and SENTRY_ENVIRONMENT, falling back to the
@@ -64,6 +66,32 @@ func sentryOptions(getenv func(string) string) sentry.ClientOptions {
 		Environment:    first("SENTRY_ENVIRONMENT", "RAILWAY_ENVIRONMENT_NAME"),
 		SendDefaultPII: false,
 	}
+}
+
+// WithRequestID wraps next to add a request_id attribute to records logged with a context
+// that carries one (see package opid). Only the *Context logging methods pass a context.
+func WithRequestID(next slog.Handler) slog.Handler { return requestIDHandler{next} }
+
+type requestIDHandler struct{ next slog.Handler }
+
+func (h requestIDHandler) Enabled(ctx context.Context, l slog.Level) bool {
+	return h.next.Enabled(ctx, l)
+}
+
+func (h requestIDHandler) Handle(ctx context.Context, r slog.Record) error {
+	if id := opid.From(ctx); id != "" {
+		r = r.Clone()
+		r.AddAttrs(slog.String("request_id", id))
+	}
+	return h.next.Handle(ctx, r)
+}
+
+func (h requestIDHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return requestIDHandler{h.next.WithAttrs(attrs)}
+}
+
+func (h requestIDHandler) WithGroup(name string) slog.Handler {
+	return requestIDHandler{h.next.WithGroup(name)}
 }
 
 // sentryHandler passes every record to next and reports Error records to Sentry. Events are
@@ -129,6 +157,9 @@ func (h *sentryHandler) capture(r slog.Record) {
 		if err, ok := a.Value.Any().(error); ok && exc == nil {
 			exc = err
 			continue
+		}
+		if a.Key == "request_id" {
+			ev.Tags["request_id"] = a.Value.String() // searchable in Sentry
 		}
 		fields[a.Key] = a.Value.Any()
 	}

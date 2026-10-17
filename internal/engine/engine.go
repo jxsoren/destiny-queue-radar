@@ -13,6 +13,7 @@ import (
 
 	"github.com/jxsoren/destiny-queue-radar/internal/bungie"
 	"github.com/jxsoren/destiny-queue-radar/internal/hub"
+	"github.com/jxsoren/destiny-queue-radar/internal/opid"
 	"github.com/jxsoren/destiny-queue-radar/internal/status"
 	"github.com/jxsoren/destiny-queue-radar/internal/store"
 )
@@ -246,6 +247,7 @@ func (e *Engine) RequestRefresh(ctx context.Context, userID int64) error {
 			continue
 		}
 		en.manualAt = now
+		en.manualOp = opid.From(ctx) // the refresh's polls log under its request ID
 	}
 	return nil
 }
@@ -330,8 +332,13 @@ func (e *Engine) dispatch(jobs chan<- string) {
 		e.lastProbe = now // an empty probe must not consume the slot
 	}
 	for _, id := range ids {
-		e.entries[id].inFlight = true
-		e.entries[id].manualAt = time.Time{}
+		en := e.entries[id]
+		en.inFlight = true
+		en.pollOp = en.manualOp
+		if en.pollOp == "" {
+			en.pollOp = opid.New()
+		}
+		en.manualAt, en.manualOp = time.Time{}, ""
 	}
 	e.mu.Unlock()
 	for _, id := range ids {
@@ -347,6 +354,7 @@ func (e *Engine) poll(ctx context.Context, id string) {
 	var membershipType int64
 	if ok {
 		membershipType = en.player.MembershipType
+		ctx = opid.With(ctx, en.pollOp)
 	}
 	e.mu.Unlock()
 	if !ok {
@@ -356,7 +364,7 @@ func (e *Engine) poll(ctx context.Context, id string) {
 	prev, err := e.store.Player(ctx, id)
 	if err != nil {
 		if ctx.Err() == nil {
-			e.log.Error("load player", "player", id, "err", err)
+			e.log.ErrorContext(ctx, "load player", "player", id, "err", err)
 		}
 		return
 	}
@@ -375,7 +383,7 @@ func (e *Engine) poll(ctx context.Context, id string) {
 		if !decided {
 			// The API call worked but the profile could not be classified; keep the previous
 			// status and do not advance last_success_at, so the dashboard shows it as stale.
-			e.log.Debug("profile undecidable", "player", id)
+			e.log.DebugContext(ctx, "profile undecidable", "player", id)
 			e.savePollFailure(ctx, id, now)
 			return
 		}
@@ -390,7 +398,7 @@ func (e *Engine) poll(ctx context.Context, id string) {
 	case bungie.IsNotFound(err):
 		next = status.Status{State: status.NotFound}
 	default:
-		e.log.Warn("poll failed", "player", id, "err", err, "throttled", bungie.IsThrottled(err))
+		e.log.WarnContext(ctx, "poll failed", "player", id, "err", err, "throttled", bungie.IsThrottled(err))
 		e.savePollFailure(ctx, id, now)
 		return
 	}
@@ -399,7 +407,7 @@ func (e *Engine) poll(ctx context.Context, id string) {
 	if err := e.store.SavePollSuccess(ctx, id, next, emblem, background, now); err != nil {
 		// ErrNotFound: the player was deleted mid-poll; nothing to save or publish.
 		if ctx.Err() == nil && !errors.Is(err, store.ErrNotFound) {
-			e.log.Error("save poll", "player", id, "err", err)
+			e.log.ErrorContext(ctx, "save poll", "player", id, "err", err)
 		}
 		return
 	}
@@ -469,7 +477,7 @@ func (e *Engine) coldStart(ctx context.Context, membershipType int64, id string,
 			if ctx.Err() != nil {
 				return prev, false
 			}
-			e.log.Warn("cold-start history failed", "player", id, "character", c.CharacterID, "err", err)
+			e.log.WarnContext(ctx, "cold-start history failed", "player", id, "character", c.CharacterID, "err", err)
 			continue
 		}
 		for i := range acts {
@@ -479,7 +487,7 @@ func (e *Engine) coldStart(ctx context.Context, membershipType int64, id string,
 		}
 	}
 	if latest == nil {
-		e.log.Debug("cold-start history found no PvP match", "player", id)
+		e.log.DebugContext(ctx, "cold-start history found no PvP match", "player", id)
 		return prev, false
 	}
 	ended := latest.EndedAt()
@@ -493,7 +501,7 @@ func (e *Engine) coldStart(ctx context.Context, membershipType int64, id string,
 
 func (e *Engine) savePollFailure(ctx context.Context, id string, now time.Time) {
 	if err := e.store.SavePollFailure(ctx, id, now); err != nil && ctx.Err() == nil && !errors.Is(err, store.ErrNotFound) {
-		e.log.Error("save poll failure", "player", id, "err", err)
+		e.log.ErrorContext(ctx, "save poll failure", "player", id, "err", err)
 	}
 }
 
@@ -514,7 +522,7 @@ func (e *Engine) publish(ctx context.Context, id string, st status.Status, at ti
 	watchers, err := e.store.WatchersOf(ctx, id)
 	if err != nil {
 		if ctx.Err() == nil {
-			e.log.Error("load watchers", "player", id, "err", err)
+			e.log.ErrorContext(ctx, "load watchers", "player", id, "err", err)
 		}
 		return
 	}

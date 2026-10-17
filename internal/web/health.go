@@ -38,11 +38,11 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), pingTimeout)
 	defer cancel()
 	if err := s.d.Store.Ping(ctx); err != nil {
-		s.d.Log.Warn("readiness: database ping failed", "err", err)
+		s.d.Log.WarnContext(r.Context(), "readiness: database ping failed", "err", err)
 		rd.Database, rd.Status = "unavailable", "unavailable"
 	}
 	if last := s.d.Engine.LastTick(); last.IsZero() || s.now().Sub(last) > pollerStaleAfter {
-		s.d.Log.Warn("readiness: poller stalled", "last_tick", last)
+		s.d.Log.WarnContext(r.Context(), "readiness: poller stalled", "last_tick", last)
 		rd.Poller, rd.Status = "stalled", "unavailable"
 	}
 

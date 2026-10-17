@@ -13,6 +13,7 @@ import (
 
 	"github.com/jxsoren/destiny-queue-radar/internal/bungie"
 	"github.com/jxsoren/destiny-queue-radar/internal/hub"
+	"github.com/jxsoren/destiny-queue-radar/internal/opid"
 	"github.com/jxsoren/destiny-queue-radar/internal/status"
 	"github.com/jxsoren/destiny-queue-radar/internal/store"
 )
@@ -121,17 +122,19 @@ type fakeProfiles struct {
 	mu       sync.Mutex
 	errs     map[string]error
 	calls    map[string]int
+	opIDs    map[string][]string        // request IDs seen per player, from the poll's context
 	profiles map[string]*bungie.Profile // empty profile when unset
 }
 
 func newFakeProfiles() *fakeProfiles {
-	return &fakeProfiles{errs: map[string]error{}, calls: map[string]int{}, profiles: map[string]*bungie.Profile{}}
+	return &fakeProfiles{errs: map[string]error{}, calls: map[string]int{}, opIDs: map[string][]string{}, profiles: map[string]*bungie.Profile{}}
 }
 
-func (f *fakeProfiles) GetProfile(_ context.Context, _ int64, id string) (*bungie.Profile, error) {
+func (f *fakeProfiles) GetProfile(ctx context.Context, _ int64, id string) (*bungie.Profile, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls[id]++
+	f.opIDs[id] = append(f.opIDs[id], opid.From(ctx))
 	if err := f.errs[id]; err != nil {
 		return nil, err
 	}
@@ -139,6 +142,12 @@ func (f *fakeProfiles) GetProfile(_ context.Context, _ int64, id string) (*bungi
 		return p, nil
 	}
 	return &bungie.Profile{}, nil
+}
+
+func (f *fakeProfiles) opIDsFor(id string) []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.opIDs[id]...)
 }
 
 func (f *fakeProfiles) callCount(id string) int {
@@ -823,4 +832,42 @@ func TestEngine_LastTickAdvancesWhileRunning(t *testing.T) {
 	eventually(t, "first tick", func() bool { return !e.LastTick().IsZero() })
 	first := e.LastTick()
 	eventually(t, "a later tick", func() bool { return e.LastTick().After(first) })
+}
+
+func TestEngine_ScheduledPollsGetTheirOwnRequestID(t *testing.T) {
+	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
+	st.watch(1, player("p1"))
+	st.watch(1, player("p2"))
+	e := New(testConfig(), st, pr, noHistory{}, always(status.Status{}), h, quietLog())
+	run(t, e)
+
+	eventually(t, "both polled", func() bool { return pr.callCount("p1") == 1 && pr.callCount("p2") == 1 })
+	a, b := pr.opIDsFor("p1")[0], pr.opIDsFor("p2")[0]
+	if len(a) != 16 || len(b) != 16 || a == b {
+		t.Errorf("request IDs = %q, %q; want two distinct IDs", a, b)
+	}
+}
+
+func TestEngine_RefreshPollsCarryTheRequestID(t *testing.T) {
+	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
+	st.watch(1, player("p1"))
+	cfg := testConfig()
+	cfg.RefreshSkip = 0
+	e := New(cfg, st, pr, noHistory{}, always(status.Status{}), h, quietLog())
+	run(t, e)
+	eventually(t, "first poll", func() bool { return pr.callCount("p1") == 1 })
+	eventually(t, "first poll finished", func() bool {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		en := e.entries["p1"]
+		return en != nil && !en.inFlight
+	})
+
+	if err := e.RequestRefresh(opid.With(context.Background(), "refresh-req"), 1); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "refresh poll", func() bool { return pr.callCount("p1") == 2 })
+	if got := pr.opIDsFor("p1")[1]; got != "refresh-req" {
+		t.Errorf("refresh poll request ID = %q, want refresh-req", got)
+	}
 }

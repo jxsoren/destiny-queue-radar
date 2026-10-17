@@ -84,11 +84,11 @@ func (s *Server) handleAddWatch(w http.ResponseWriter, r *http.Request, u store.
 		writeError(w, http.StatusNotFound, "player not found")
 		return
 	case bungie.IsSystemDisabled(err), bungie.IsThrottled(err):
-		s.d.Log.Warn("profile lookup unavailable", "err", err)
+		s.d.Log.WarnContext(r.Context(), "profile lookup unavailable", "err", err)
 		writeError(w, http.StatusServiceUnavailable, "Bungie API is unavailable")
 		return
 	case err != nil:
-		s.d.Log.Warn("profile lookup failed", "err", err)
+		s.d.Log.WarnContext(r.Context(), "profile lookup failed", "err", err)
 		writeError(w, http.StatusBadGateway, "could not reach Bungie")
 		return
 	}
@@ -96,7 +96,7 @@ func (s *Server) handleAddWatch(w http.ResponseWriter, r *http.Request, u store.
 	ref := store.PlayerRef{MembershipType: req.MembershipType, MembershipID: req.MembershipID}
 	if d := prof.Profile.Data; d != nil {
 		if d.UserInfo.MembershipID != req.MembershipID || !validMembershipTypes[d.UserInfo.MembershipType] {
-			s.d.Log.Warn("profile does not match the request", "asked", req.MembershipID, "got", d.UserInfo.MembershipID)
+			s.d.Log.WarnContext(r.Context(), "profile does not match the request", "asked", req.MembershipID, "got", d.UserInfo.MembershipID)
 			writeError(w, http.StatusBadGateway, "unexpected response from Bungie")
 			return
 		}
@@ -163,7 +163,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, u store.Us
 		return
 	}
 	if err != nil {
-		s.d.Log.Warn("search failed", "err", err)
+		s.d.Log.WarnContext(r.Context(), "search failed", "err", err)
 		writeError(w, http.StatusBadGateway, "could not reach Bungie")
 		return
 	}
@@ -178,7 +178,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, u store.Us
 	if prof, err := s.d.Bungie.GetProfile(pctx, card.MembershipType, card.MembershipID); err == nil {
 		emblem, _ = prof.ActiveEmblem()
 	} else if !bungie.IsNotFound(err) && !errors.Is(err, context.DeadlineExceeded) {
-		s.d.Log.Warn("search emblem lookup failed", "err", err)
+		s.d.Log.WarnContext(r.Context(), "search emblem lookup failed", "err", err)
 	}
 	writeJSON(w, http.StatusOK, searchResultJSON{MembershipType: card.MembershipType, MembershipID: card.MembershipID,
 		BungieName: display, EmblemPath: emblem})

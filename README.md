@@ -49,6 +49,7 @@ go run ./cmd/probe -players "Name#1234"
 | `BUNGIE_STATS_BASE_URL` | no | `https://stats.bungie.net` |
 | `ADDR` | no | `:$PORT` if `PORT` is set, else `:8443` |
 | `TLS_CERT_FILE` / `TLS_KEY_FILE` | no | none (plain HTTP) |
+| `BUNGIE_LOG_BODY_BYTES` | no | `0` (off); see [Debugging Bungie calls](#debugging-bungie-calls) |
 | `LOG_FORMAT` | no | `text` (`json` in the Docker image) |
 | `SENTRY_DSN` | no | none (Sentry off) |
 | `SENTRY_ENVIRONMENT` | no | `RAILWAY_ENVIRONMENT_NAME` |
@@ -71,6 +72,14 @@ Health endpoints:
 
 - `GET /healthz`: liveness; 200 while the process serves HTTP.
 - `GET /readyz`: readiness; 503 if the database ping fails or the poller has not looped in 30 seconds. It reports Bungie's state but does not fail on a Bungie outage. Point an uptime monitor here.
+
+## Debugging Bungie calls
+
+Set `BUNGIE_LOG_BODY_BYTES` (for example `16384`) to log every Bungie Platform request as a `bungie http` line with its method, path, query, status, duration and up to that many bytes of the request and response bodies. Longer bodies are cut off and marked `response_truncated`. Headers are never logged, since they carry the API key and users' bearer tokens, and OAuth token exchanges are not logged at all. Bodies hold player data and the poller polls each watched player every minute, so turn it off again when you are done.
+
+### Following one operation
+
+Every HTTP response carries an `X-Request-Id` header, and every log line the request writes, including its `bungie http` lines, carries the same `request_id`. Each poll gets its own `request_id`; the polls a dashboard refresh queues reuse the refresh request's ID. Sentry events have it as a `request_id` tag. To see everything one operation did, copy the ID from the browser's network tab or a Sentry event and search the Railway logs for it.
 
 ## Development
 

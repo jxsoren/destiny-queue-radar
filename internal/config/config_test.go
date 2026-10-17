@@ -214,3 +214,26 @@ func TestServerFromEnv_AddrWinsOverPort(t *testing.T) {
 		t.Errorf("addr = %q, want 127.0.0.1:9000", s.Addr)
 	}
 }
+
+func TestServerFromEnv_BungieLogBodyBytes(t *testing.T) {
+	s, err := ServerFromEnv(envFrom(serverEnv()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.BungieLogBodyBytes != 0 {
+		t.Errorf("default = %d, want 0 (off)", s.BungieLogBodyBytes)
+	}
+
+	env := serverEnv()
+	env["BUNGIE_LOG_BODY_BYTES"] = "16384"
+	if s, err = ServerFromEnv(envFrom(env)); err != nil || s.BungieLogBodyBytes != 16384 {
+		t.Errorf("got %d, %v; want 16384", s.BungieLogBodyBytes, err)
+	}
+
+	for _, bad := range []string{"-1", "lots"} {
+		env["BUNGIE_LOG_BODY_BYTES"] = bad
+		if _, err := ServerFromEnv(envFrom(env)); err == nil || !strings.Contains(err.Error(), "BUNGIE_LOG_BODY_BYTES") {
+			t.Errorf("%q: err = %v", bad, err)
+		}
+	}
+}

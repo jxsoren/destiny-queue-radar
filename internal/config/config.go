@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 )
 
@@ -62,6 +63,9 @@ type Server struct {
 	Port              string // used for Addr when ADDR is unset; set by hosts such as Railway
 	TLSCertFile       string // optional; set together with TLSKeyFile
 	TLSKeyFile        string
+	// BungieLogBodyBytes, when > 0, logs every Bungie Platform request with up to this many
+	// bytes of its request and response bodies. Off (0) by default.
+	BungieLogBodyBytes int
 }
 
 // String summarizes the configuration with secrets and the database URL redacted.
@@ -124,6 +128,13 @@ func ServerFromEnv(getenv func(string) string) (Server, error) {
 
 	if (s.TLSCertFile == "") != (s.TLSKeyFile == "") {
 		return Server{}, errors.New("TLS_CERT_FILE and TLS_KEY_FILE must be set together")
+	}
+	if raw := get("BUNGIE_LOG_BODY_BYTES"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 {
+			return Server{}, errors.New("BUNGIE_LOG_BODY_BYTES must be a non-negative number of bytes")
+		}
+		s.BungieLogBodyBytes = n
 	}
 	if s.StatsBaseURL == "" {
 		s.StatsBaseURL = defaultStatsBaseURL

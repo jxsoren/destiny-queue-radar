@@ -165,7 +165,7 @@ func (tm *TokenManager) AccessToken(ctx context.Context, userID int64) (string, 
 	if now.Add(refreshSkew).Before(t.AccessExpiresAt) {
 		access, err := tm.box.Decrypt(t.AccessToken, tokenAAD(userID, kindAccess))
 		if err != nil {
-			slog.Default().Warn("auth: stored access token unreadable", "user_id", userID, "err", err)
+			slog.Default().WarnContext(ctx, "auth: stored access token unreadable", "user_id", userID, "err", err)
 			return "", fmt.Errorf("%w: stored tokens unreadable", ErrReauthRequired)
 		}
 		return string(access), nil
@@ -175,7 +175,7 @@ func (tm *TokenManager) AccessToken(ctx context.Context, userID int64) (string, 
 	}
 	refresh, err := tm.box.Decrypt(t.RefreshToken, tokenAAD(userID, kindRefresh))
 	if err != nil {
-		slog.Default().Warn("auth: stored refresh token unreadable", "user_id", userID, "err", err)
+		slog.Default().WarnContext(ctx, "auth: stored refresh token unreadable", "user_id", userID, "err", err)
 		return "", fmt.Errorf("%w: stored tokens unreadable", ErrReauthRequired)
 	}
 	r, err := tm.request(ctx, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {string(refresh)}})
@@ -187,7 +187,7 @@ func (tm *TokenManager) AccessToken(ctx context.Context, userID int64) (string, 
 	pctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if err := tm.persist(pctx, userID, r, &t); err != nil {
-		slog.Default().Error("auth: persist refreshed tokens failed", "user_id", userID, "err", err)
+		slog.Default().ErrorContext(pctx, "auth: persist refreshed tokens failed", "user_id", userID, "err", err)
 	}
 	return r.AccessToken, nil
 }

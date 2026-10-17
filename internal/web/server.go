@@ -17,6 +17,7 @@ import (
 	"github.com/jxsoren/destiny-queue-radar/internal/engine"
 	"github.com/jxsoren/destiny-queue-radar/internal/hub"
 	"github.com/jxsoren/destiny-queue-radar/internal/matches"
+	"github.com/jxsoren/destiny-queue-radar/internal/opid"
 	"github.com/jxsoren/destiny-queue-radar/internal/store"
 )
 
@@ -118,7 +119,12 @@ func New(d Deps) *Server {
 	return s
 }
 
+// ServeHTTP tags the request with a new ID, returned in X-Request-Id and added to every log
+// line written with the request's context.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	id := opid.New()
+	w.Header().Set("X-Request-Id", id)
+	r = r.WithContext(opid.With(r.Context(), id))
 	defer s.recoverPanic(w, r)
 	s.mux.ServeHTTP(w, r)
 }
@@ -133,7 +139,7 @@ func (s *Server) recoverPanic(w http.ResponseWriter, r *http.Request) {
 	if v == http.ErrAbortHandler {
 		panic(v)
 	}
-	s.d.Log.Error("panic serving request", "method", r.Method, "path", r.URL.Path,
+	s.d.Log.ErrorContext(r.Context(), "panic serving request", "method", r.Method, "path", r.URL.Path,
 		"err", fmt.Errorf("panic: %v", v), "stack", string(debug.Stack()))
 	writeError(w, http.StatusInternalServerError, "internal error")
 }
@@ -203,6 +209,6 @@ func (s *Server) mutating(h http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Server) internal(w http.ResponseWriter, r *http.Request, err error) {
-	s.d.Log.Error("request failed", "method", r.Method, "path", r.URL.Path, "err", err)
+	s.d.Log.ErrorContext(r.Context(), "request failed", "method", r.Method, "path", r.URL.Path, "err", err)
 	writeError(w, http.StatusInternalServerError, "internal error")
 }

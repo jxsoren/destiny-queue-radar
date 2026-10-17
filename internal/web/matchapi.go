@@ -64,13 +64,13 @@ func (s *Server) handleRecentMatches(w http.ResponseWriter, r *http.Request, u s
 		return
 	}
 	if err != nil {
-		s.d.Log.Warn("access token unavailable", "user", u.ID, "err", err)
+		s.d.Log.WarnContext(r.Context(), "access token unavailable", "user", u.ID, "err", err)
 		writeError(w, http.StatusBadGateway, "could not reach Bungie")
 		return
 	}
 	recent, err := s.d.Matches.Recent(r.Context(), token, u.DestinyMembershipType, u.DestinyMembershipID, recentMatchLimit)
 	if err != nil {
-		s.d.Log.Warn("recent matches failed", "user", u.ID, "err", err)
+		s.d.Log.WarnContext(r.Context(), "recent matches failed", "user", u.ID, "err", err)
 		writeError(w, http.StatusBadGateway, "could not reach Bungie")
 		return
 	}
@@ -101,7 +101,7 @@ func (s *Server) handleMatch(w http.ResponseWriter, r *http.Request, u store.Use
 		return
 	}
 	if err != nil {
-		s.d.Log.Warn("match lookup failed", "instance", id, "err", err)
+		s.d.Log.WarnContext(r.Context(), "match lookup failed", "instance", id, "err", err)
 		writeError(w, http.StatusBadGateway, "could not reach Bungie")
 		return
 	}

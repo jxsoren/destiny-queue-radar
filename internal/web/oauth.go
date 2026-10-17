@@ -49,7 +49,7 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		s.d.Log.Error("token exchange failed", "err", err)
+		s.d.Log.ErrorContext(r.Context(), "token exchange failed", "err", err)
 		writeError(w, http.StatusBadGateway, "could not reach Bungie")
 		return
 	}
@@ -59,7 +59,7 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		s.d.Log.Error("current user lookup failed", "err", err)
+		s.d.Log.ErrorContext(r.Context(), "current user lookup failed", "err", err)
 		writeError(w, http.StatusBadGateway, "could not reach Bungie")
 		return
 	}

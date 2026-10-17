@@ -17,6 +17,7 @@ import (
 	"github.com/jxsoren/destiny-queue-radar/internal/bungie"
 	"github.com/jxsoren/destiny-queue-radar/internal/engine"
 	"github.com/jxsoren/destiny-queue-radar/internal/hub"
+	"github.com/jxsoren/destiny-queue-radar/internal/logging"
 	"github.com/jxsoren/destiny-queue-radar/internal/matches"
 	"github.com/jxsoren/destiny-queue-radar/internal/store"
 )
@@ -365,6 +366,27 @@ func decode[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 		t.Fatalf("decode %q: %v", rec.Body.String(), err)
 	}
 	return v
+}
+
+func TestServer_TagsEachRequestWithAnID(t *testing.T) {
+	var logs bytes.Buffer
+	e := newTestEnvWith(t, func(d *Deps) {
+		d.Log = slog.New(logging.WithRequestID(slog.NewTextHandler(&logs, nil)))
+	})
+	_, c := e.login(t, "ana")
+	e.store.onWatchlist = func() { panic("boom") }
+
+	first := e.do(t, http.MethodGet, "/api/watchlist", nil, c)
+	id := first.Header().Get("X-Request-Id")
+	if len(id) != 16 {
+		t.Fatalf("X-Request-Id = %q, want a 16-character ID", id)
+	}
+	if !strings.Contains(logs.String(), "request_id="+id) {
+		t.Errorf("log does not carry the request ID %s: %q", id, logs.String())
+	}
+	if second := e.do(t, http.MethodGet, "/healthz", nil); second.Header().Get("X-Request-Id") == id {
+		t.Error("two requests share an ID")
+	}
 }
 
 func TestServer_RecoversHandlerPanic(t *testing.T) {
