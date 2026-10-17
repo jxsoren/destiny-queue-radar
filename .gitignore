@@ -9,6 +9,9 @@ GEMINI.md
 .cursor/
 .aider*
 
+# Editor settings
+.idea/
+
 # Probe captures (contain real player IDs)
 testdata/probe/
 
