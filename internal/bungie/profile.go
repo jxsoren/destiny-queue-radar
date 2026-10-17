@@ -79,9 +79,29 @@ type TransitoryActivity struct {
 	NumberOfOpponents int        `json:"numberOfOpponents"`
 }
 
+// DestinyJoinClosedReasons bits, from Joinability.ClosedReasons.
+const (
+	JoinClosedInMatchmaking = 1
+	JoinClosedLoading       = 2
+	JoinClosedSoloMode      = 4
+	JoinClosedInternal      = 8
+	JoinClosedGameState     = 16
+	JoinClosedOffline       = 32768
+)
+
+type Joinability struct {
+	OpenSlots      int `json:"openSlots"`
+	PrivacySetting int `json:"privacySetting"`
+	ClosedReasons  int `json:"closedReasons"`
+}
+
+// InMatchmaking reports whether the game closed the fireteam because it is queued.
+func (j Joinability) InMatchmaking() bool { return j.ClosedReasons&JoinClosedInMatchmaking != 0 }
+
 type TransitoryData struct {
 	PartyMembers    []PartyMember       `json:"partyMembers"`
 	CurrentActivity *TransitoryActivity `json:"currentActivity"`
+	Joinability     *Joinability        `json:"joinability"`
 }
 
 // Profile is the decoded profile response. For every component, Data is nil (or an

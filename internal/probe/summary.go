@@ -41,6 +41,11 @@ type Summary struct {
 	Players            int            `json:"players,omitempty"`
 	Opponents          int            `json:"opponents,omitempty"`
 
+	HasJoinability bool `json:"hasJoinability"`
+	OpenSlots      int  `json:"openSlots,omitempty"`
+	ClosedReasons  int  `json:"closedReasons,omitempty"`
+	InMatchmaking  bool `json:"inMatchmaking,omitempty"`
+
 	ModeType   int      `json:"modeType,omitempty"`
 	ModeTypes  []int    `json:"modeTypes,omitempty"`
 	ModeHashes []uint32 `json:"modeHashes,omitempty"`
@@ -60,6 +65,10 @@ func Summarize(player string, p *bungie.Profile, l Lookup) Summary {
 			s.HasCurrentActivity = true
 			s.TransitoryStart, s.TransitoryEnd = ca.StartTime, ca.EndTime
 			s.Players, s.Opponents = ca.NumberOfPlayers, ca.NumberOfOpponents
+		}
+		if j := td.Joinability; j != nil {
+			s.HasJoinability = true
+			s.OpenSlots, s.ClosedReasons, s.InMatchmaking = j.OpenSlots, j.ClosedReasons, j.InMatchmaking()
 		}
 	}
 	id, ok := p.ActiveCharacterID()
@@ -129,7 +138,11 @@ func (s Summary) String() string {
 	if !s.Started.IsZero() {
 		started = s.Started.Local().Format("01-02 15:04:05")
 	}
-	return fmt.Sprintf("%-22s online=%t class=%s priv=act:%s/trans:%s activity=%q pvp=%t mode=%q cat=%s playlist=%q started=%s party=%d ca=%t players=%d opp=%d modeType=%d",
+	slots, closed := "-", "-"
+	if s.HasJoinability {
+		slots, closed = fmt.Sprint(s.OpenSlots), fmt.Sprint(s.ClosedReasons)
+	}
+	return fmt.Sprintf("%-22s online=%t class=%s priv=act:%s/trans:%s activity=%q pvp=%t mode=%q cat=%s playlist=%q started=%s party=%d ca=%t players=%d opp=%d modeType=%d slots=%s closed=%s mm=%t",
 		s.Player, s.Online, className(s.ClassType), privacyName(s.ActivitiesPrivacy), privacyName(s.TransitoryPrivacy), s.Activity, s.ActivityIsPvP, s.Mode, s.ModeCategory,
-		s.Playlist, started, s.PartySize, s.HasCurrentActivity, s.Players, s.Opponents, s.ModeType)
+		s.Playlist, started, s.PartySize, s.HasCurrentActivity, s.Players, s.Opponents, s.ModeType, slots, closed, s.InMatchmaking)
 }

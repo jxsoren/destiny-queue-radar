@@ -48,6 +48,7 @@ func onlineProfile() *bungie.Profile {
 	p.ProfileTransitoryData.Data = &bungie.TransitoryData{
 		PartyMembers:    []bungie.PartyMember{{}, {}, {}},
 		CurrentActivity: &bungie.TransitoryActivity{StartTime: &ts, NumberOfPlayers: 6, NumberOfOpponents: 3},
+		Joinability:     &bungie.Joinability{OpenSlots: 3, ClosedReasons: 2},
 	}
 	return p
 }
@@ -82,6 +83,28 @@ func TestSummarize_OnlineInMatch(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("String() = %q, missing %q", out, want)
 		}
+	}
+}
+
+func TestSummarize_Joinability(t *testing.T) {
+	p := onlineProfile()
+	p.ProfileTransitoryData.Data.Joinability.ClosedReasons = bungie.JoinClosedInMatchmaking | bungie.JoinClosedLoading
+	s := Summarize("X#0001", p, lookup)
+	if !s.HasJoinability || s.OpenSlots != 3 || s.ClosedReasons != 3 || !s.InMatchmaking {
+		t.Errorf("join=%v slots=%d closed=%d mm=%v", s.HasJoinability, s.OpenSlots, s.ClosedReasons, s.InMatchmaking)
+	}
+	if out := s.String(); !strings.Contains(out, "slots=3 closed=3 mm=true") {
+		t.Errorf("String() = %q", out)
+	}
+
+	p.ProfileTransitoryData.Data.Joinability.ClosedReasons = bungie.JoinClosedLoading
+	if s := Summarize("X#0001", p, lookup); s.InMatchmaking {
+		t.Error("mm=true without the InMatchmaking bit")
+	}
+
+	p.ProfileTransitoryData.Data.Joinability = nil
+	if s := Summarize("X#0001", p, lookup); s.HasJoinability || s.InMatchmaking || !strings.Contains(s.String(), "slots=- closed=- mm=false") {
+		t.Errorf("join=%v mm=%v out=%q", s.HasJoinability, s.InMatchmaking, s.String())
 	}
 }
 
