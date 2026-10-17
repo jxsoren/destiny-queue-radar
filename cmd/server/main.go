@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"github.com/jxsoren/destiny-queue-radar/internal/cryptobox"
 	"github.com/jxsoren/destiny-queue-radar/internal/engine"
 	"github.com/jxsoren/destiny-queue-radar/internal/hub"
+	"github.com/jxsoren/destiny-queue-radar/internal/logging"
 	"github.com/jxsoren/destiny-queue-radar/internal/manifest"
 	"github.com/jxsoren/destiny-queue-radar/internal/matches"
 	"github.com/jxsoren/destiny-queue-radar/internal/ratelimit"
@@ -44,14 +46,24 @@ var engineConfig = engine.DefaultConfig
 var e2eBuild = false
 
 func main() {
-	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	if err := run(log); err != nil {
+	log, flush, err := logging.Setup(os.Getenv, os.Stdout)
+	if err != nil {
+		slog.Error("logging setup failed", "err", err)
+		os.Exit(1)
+	}
+	// Packages that log through slog.Default (internal/auth) get the same output and Sentry.
+	slog.SetDefault(log)
+	err = run(log, flush)
+	if err != nil {
 		log.Error("server stopped", "err", err)
+	}
+	flush()
+	if err != nil {
 		os.Exit(1)
 	}
 }
 
-func run(log *slog.Logger) error {
+func run(log *slog.Logger, flush func()) error {
 	cfg, err := config.ServerFromEnv(os.Getenv)
 	if err != nil {
 		return err
@@ -119,14 +131,17 @@ func run(log *slog.Logger) error {
 	wg.Add(3)
 	go func() {
 		defer wg.Done()
+		defer reportPanic(log, flush)
 		eng.Run(ctx)
 	}()
 	go func() {
 		defer wg.Done()
+		defer reportPanic(log, flush)
 		live.Run(ctx)
 	}()
 	go func() {
 		defer wg.Done()
+		defer reportPanic(log, flush)
 		cleanup(ctx, st, log)
 	}()
 
@@ -136,7 +151,7 @@ func run(log *slog.Logger) error {
 		if cfg.TLSCertFile != "" {
 			serveErr <- srv.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile)
 		} else {
-			log.Warn("serving plain HTTP; Bungie sign-in needs HTTPS (set TLS_CERT_FILE and TLS_KEY_FILE)")
+			log.Warn("serving plain HTTP; Bungie sign-in needs HTTPS, from a TLS proxy (as on Railway) or TLS_CERT_FILE and TLS_KEY_FILE")
 			serveErr <- srv.ListenAndServe()
 		}
 	}()
@@ -157,6 +172,18 @@ func run(log *slog.Logger) error {
 		return nil
 	}
 	return err
+}
+
+// reportPanic logs a background goroutine's panic and flushes it to Sentry, then re-panics:
+// the process still crashes, and the platform restarts it.
+func reportPanic(log *slog.Logger, flush func()) {
+	v := recover()
+	if v == nil {
+		return
+	}
+	log.Error("background panic", "err", fmt.Errorf("panic: %v", v), "stack", string(debug.Stack()))
+	flush()
+	panic(v)
 }
 
 // cleanup deletes long-unwatched players and expired sessions every hour.

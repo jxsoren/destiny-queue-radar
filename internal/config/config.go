@@ -59,6 +59,7 @@ type Server struct {
 	TokenKey          []byte // AES-256 key for OAuth tokens at rest
 	StatsBaseURL      string // host for post-game carnage reports
 	Addr              string
+	Port              string // used for Addr when ADDR is unset; set by hosts such as Railway
 	TLSCertFile       string // optional; set together with TLSKeyFile
 	TLSKeyFile        string
 }
@@ -91,6 +92,7 @@ func ServerFromEnv(getenv func(string) string) (Server, error) {
 		OAuthRedirectURL:  get("BUNGIE_OAUTH_REDIRECT_URL"),
 		StatsBaseURL:      get("BUNGIE_STATS_BASE_URL"),
 		Addr:              get("ADDR"),
+		Port:              get("PORT"),
 		TLSCertFile:       get("TLS_CERT_FILE"),
 		TLSKeyFile:        get("TLS_KEY_FILE"),
 	}
@@ -127,6 +129,9 @@ func ServerFromEnv(getenv func(string) string) (Server, error) {
 		s.StatsBaseURL = defaultStatsBaseURL
 	}
 	s.StatsBaseURL = strings.TrimRight(s.StatsBaseURL, "/")
+	if s.Addr == "" && s.Port != "" {
+		s.Addr = ":" + s.Port
+	}
 	if s.Addr == "" {
 		s.Addr = defaultAddr
 	}

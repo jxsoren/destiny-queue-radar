@@ -48,6 +48,9 @@ func open(ctx context.Context, cfg *pgxpool.Config) (*Store, error) {
 
 func (s *Store) Close() { s.pool.Close() }
 
+// Ping checks that the database is reachable.
+func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
+
 type User struct {
 	ID                    int64
 	BungieMembershipID    string

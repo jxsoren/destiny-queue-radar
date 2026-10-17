@@ -123,6 +123,7 @@ type Engine struct {
 	health      health
 	apiState    APIState
 	lastProbe   time.Time
+	lastTick    time.Time // end of the scheduler's latest loop; zero until Run has looped once
 	// historyTried holds players whose cold-start history lookup has run. It outlives scheduler
 	// entries, which are dropped when a player leaves the active set, so the lookup happens at
 	// most once per player per process even when it finds nothing or fails.
@@ -162,6 +163,13 @@ func (e *Engine) APIState() APIState {
 	return e.apiState
 }
 
+// LastTick reports when the scheduler last completed a loop, for readiness checks.
+func (e *Engine) LastTick() time.Time {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.lastTick
+}
+
 // Run schedules and performs polls until ctx is cancelled, then waits for in-flight polls.
 func (e *Engine) Run(ctx context.Context) error {
 	jobs := make(chan string, e.cfg.Workers)
@@ -187,6 +195,9 @@ func (e *Engine) Run(ctx context.Context) error {
 			e.log.Error("refresh active set", "err", err)
 		}
 		e.dispatch(jobs)
+		e.mu.Lock()
+		e.lastTick = e.now()
+		e.mu.Unlock()
 		select {
 		case <-ctx.Done():
 			return nil

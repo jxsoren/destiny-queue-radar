@@ -1,0 +1,14 @@
+.git
+.github
+.env
+certs/
+bin/
+docs/
+testdata/
+.superpowers/
+.taste-skill/
+.claude/
+web/node_modules/
+web/test-results/
+web/playwright-report/
+internal/webui/dist/app/

@@ -4,9 +4,11 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 
 // Store is the subset of *store.Store the web layer uses.
 type Store interface {
+	Ping(ctx context.Context) error
 	SessionUser(ctx context.Context, idHash []byte, now time.Time) (store.User, error)
 	CreateSession(ctx context.Context, idHash []byte, userID int64, expiresAt time.Time) error
 	DeleteSession(ctx context.Context, idHash []byte) error
@@ -36,6 +39,7 @@ type Engine interface {
 	RequestRefresh(ctx context.Context, userID int64) error
 	Recheck(membershipType int64, membershipID string)
 	APIState() engine.APIState
+	LastTick() time.Time
 }
 
 // Hub is the subset of *hub.Hub the web layer uses.
@@ -114,7 +118,25 @@ func New(d Deps) *Server {
 	return s
 }
 
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer s.recoverPanic(w, r)
+	s.mux.ServeHTTP(w, r)
+}
+
+// recoverPanic logs a handler panic at Error level (so it reaches Sentry) and answers 500.
+// http.ErrAbortHandler is re-raised: it is net/http's signal to abort the response.
+func (s *Server) recoverPanic(w http.ResponseWriter, r *http.Request) {
+	v := recover()
+	if v == nil {
+		return
+	}
+	if v == http.ErrAbortHandler {
+		panic(v)
+	}
+	s.d.Log.Error("panic serving request", "method", r.Method, "path", r.URL.Path,
+		"err", fmt.Errorf("panic: %v", v), "stack", string(debug.Stack()))
+	writeError(w, http.StatusInternalServerError, "internal error")
+}
 
 // extraRoutes lets build-tagged files (e2e_signin.go) add routes. Empty in release builds.
 var extraRoutes []func(*Server)
@@ -125,6 +147,8 @@ func (s *Server) routes() {
 	} else {
 		s.mux.HandleFunc("GET /{$}", s.handleIndex)
 	}
+	s.mux.HandleFunc("GET /healthz", s.handleHealthz)
+	s.mux.HandleFunc("GET /readyz", s.handleReadyz)
 	s.mux.HandleFunc("GET /auth/login", s.handleLogin)
 	s.mux.HandleFunc("GET /auth/callback", s.handleCallback)
 	s.mux.HandleFunc("POST /auth/logout", s.mutating(s.handleLogout))

@@ -189,3 +189,28 @@ func TestServerFromEnv_RequiresAPIKey(t *testing.T) {
 		t.Error("expected error without BUNGIE_API_KEY")
 	}
 }
+
+func TestServerFromEnv_AddrFromPort(t *testing.T) {
+	env := serverEnv()
+	env["PORT"] = "8080"
+	s, err := ServerFromEnv(envFrom(env))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Addr != ":8080" {
+		t.Errorf("addr = %q, want :8080", s.Addr)
+	}
+}
+
+func TestServerFromEnv_AddrWinsOverPort(t *testing.T) {
+	env := serverEnv()
+	env["PORT"] = "8080"
+	env["ADDR"] = "127.0.0.1:9000"
+	s, err := ServerFromEnv(envFrom(env))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Addr != "127.0.0.1:9000" {
+		t.Errorf("addr = %q, want 127.0.0.1:9000", s.Addr)
+	}
+}

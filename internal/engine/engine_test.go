@@ -812,3 +812,15 @@ func TestRecheck_PlayerGoneFromStoreIsHarmless(t *testing.T) {
 		t.Error("polled a player that no longer exists")
 	}
 }
+
+func TestEngine_LastTickAdvancesWhileRunning(t *testing.T) {
+	e := New(testConfig(), newFakeStore(), newFakeProfiles(), noHistory{}, always(status.Status{}), &fakeHub{}, quietLog())
+	if !e.LastTick().IsZero() {
+		t.Fatalf("LastTick before Run = %v, want zero", e.LastTick())
+	}
+	run(t, e)
+
+	eventually(t, "first tick", func() bool { return !e.LastTick().IsZero() })
+	first := e.LastTick()
+	eventually(t, "a later tick", func() bool { return e.LastTick().After(first) })
+}

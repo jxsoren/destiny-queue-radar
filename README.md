@@ -47,10 +47,30 @@ go run ./cmd/probe -players "Name#1234"
 | `BUNGIE_OAUTH_REDIRECT_URL` | server | none |
 | `TOKEN_ENCRYPTION_KEY` | server | none (`openssl rand -base64 32`) |
 | `BUNGIE_STATS_BASE_URL` | no | `https://stats.bungie.net` |
-| `ADDR` | no | `:8443` |
+| `ADDR` | no | `:$PORT` if `PORT` is set, else `:8443` |
 | `TLS_CERT_FILE` / `TLS_KEY_FILE` | no | none (plain HTTP) |
+| `LOG_FORMAT` | no | `text` (`json` in the Docker image) |
+| `SENTRY_DSN` | no | none (Sentry off) |
+| `SENTRY_ENVIRONMENT` | no | `RAILWAY_ENVIRONMENT_NAME` |
+| `SENTRY_RELEASE` | no | `RAILWAY_GIT_COMMIT_SHA` |
 
 In those rows, `server` means "required for cmd/server only".
+
+## Deploying to Railway
+
+The `Dockerfile` builds the dashboard and server into one image, and `railway.json` tells Railway to build it and gate each deploy on `/readyz`.
+
+1. Create a Railway project from this repo and add a **PostgreSQL** service.
+2. On the app service, set the variables: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `BUNGIE_API_KEY`, `BUNGIE_OAUTH_CLIENT_ID`, `BUNGIE_OAUTH_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`, and `BUNGIE_OAUTH_REDIRECT_URL=https://<your-domain>/auth/callback`. Optionally set `SENTRY_DSN` to report errors. Leave `ADDR` and the TLS settings unset: Railway sets `PORT` and terminates HTTPS.
+3. Generate a domain under the service's networking settings, and add the same callback URL to your Bungie application.
+4. Keep one replica. The live stream hub is in memory, so a second instance would miss events.
+
+With `SENTRY_DSN` set, every Error-level log line and every recovered panic becomes a Sentry event, grouped by log message and limited to one event per message per minute. The logs keep every line.
+
+Health endpoints:
+
+- `GET /healthz`: liveness; 200 while the process serves HTTP.
+- `GET /readyz`: readiness; 503 if the database ping fails or the poller has not looped in 30 seconds. It reports Bungie's state but does not fail on a Bungie outage. Point an uptime monitor here.
 
 ## Development
 

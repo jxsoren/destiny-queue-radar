@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -32,12 +33,19 @@ type fakeStore struct {
 	sessions map[string]fakeSession
 	watch    map[int64][]store.WatchedPlayer
 	addErr   error
+	pingErr  error
 	// onWatchlist, when set, runs at the start of Watchlist (outside the lock).
 	onWatchlist func()
 }
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{users: map[int64]store.User{}, sessions: map[string]fakeSession{}, watch: map[int64][]store.WatchedPlayer{}}
+}
+
+func (f *fakeStore) Ping(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.pingErr
 }
 
 func (f *fakeStore) user(id int64) store.User {
@@ -158,6 +166,13 @@ type fakeEngine struct {
 	refreshErr error
 	refreshed  []int64
 	rechecked  []store.PlayerRef
+	lastTick   time.Time
+}
+
+func (f *fakeEngine) LastTick() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lastTick
 }
 
 func (f *fakeEngine) RequestRefresh(_ context.Context, userID int64) error {
@@ -350,6 +365,22 @@ func decode[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 		t.Fatalf("decode %q: %v", rec.Body.String(), err)
 	}
 	return v
+}
+
+func TestServer_RecoversHandlerPanic(t *testing.T) {
+	var logs bytes.Buffer
+	e := newTestEnvWith(t, func(d *Deps) { d.Log = slog.New(slog.NewTextHandler(&logs, nil)) })
+	_, c := e.login(t, "ana")
+	e.store.onWatchlist = func() { panic("boom") }
+
+	rec := e.do(t, http.MethodGet, "/api/watchlist", nil, c)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	out := logs.String()
+	if !strings.Contains(out, "level=ERROR") || !strings.Contains(out, "panic serving request") || !strings.Contains(out, "boom") || !strings.Contains(out, "path=/api/watchlist") {
+		t.Errorf("log = %q", out)
+	}
 }
 
 func cookieNamed(rec *httptest.ResponseRecorder, name string) *http.Cookie {
