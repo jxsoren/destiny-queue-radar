@@ -35,7 +35,7 @@ var lookup = fakeLookup{
 }
 
 func onlineProfile() *bungie.Profile {
-	p := &bungie.Profile{}
+	p := &bungie.Profile{MintedAt: time.Date(2026, 10, 15, 18, 6, 7, 0, time.UTC)}
 	started := time.Date(2026, 10, 15, 18, 5, 0, 0, time.UTC)
 	p.CharacterActivities.Privacy = bungie.PrivacyPublic
 	p.CharacterActivities.Data = map[string]bungie.CharacterActivities{
@@ -105,6 +105,20 @@ func TestSummarize_Joinability(t *testing.T) {
 	p.ProfileTransitoryData.Data.Joinability = nil
 	if s := Summarize("X#0001", p, lookup); s.HasJoinability || s.InMatchmaking || !strings.Contains(s.String(), "slots=- closed=- mm=false") {
 		t.Errorf("join=%v mm=%v out=%q", s.HasJoinability, s.InMatchmaking, s.String())
+	}
+}
+
+func TestSummarize_Minted(t *testing.T) {
+	s := Summarize("X#0001", onlineProfile(), lookup)
+	if !s.Minted.Equal(time.Date(2026, 10, 15, 18, 6, 7, 0, time.UTC)) {
+		t.Errorf("minted = %v", s.Minted)
+	}
+	want := "minted=" + s.Minted.Local().Format("15:04:05")
+	if out := s.String(); !strings.Contains(out, want) {
+		t.Errorf("String() = %q, missing %q", out, want)
+	}
+	if out := (Summary{}).String(); !strings.Contains(out, "minted=-") {
+		t.Errorf("String() = %q, missing minted=-", out)
 	}
 }
 

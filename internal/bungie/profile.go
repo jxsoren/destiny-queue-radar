@@ -113,6 +113,10 @@ type Profile struct {
 	CharacterActivities   perCharacter[CharacterActivities] `json:"characterActivities"`
 	ProfileTransitoryData single[TransitoryData]            `json:"profileTransitoryData"`
 
+	// MintedAt is when Bungie built this response. Bungie's caches can answer with a response
+	// older than one already received, so a poller should ignore any that go backwards.
+	MintedAt time.Time `json:"responseMintedTimestamp"`
+
 	// Raw is the undecoded Response JSON, kept for recording test data.
 	Raw json.RawMessage `json:"-"`
 }

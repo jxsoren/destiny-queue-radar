@@ -12,6 +12,7 @@ type State string
 const (
 	Unknown       State = ""
 	InMatch       State = "IN_MATCH"
+	Queued        State = "QUEUED"
 	LikelyQueuing State = "LIKELY_QUEUING"
 	NotInPvP      State = "NOT_IN_PVP"
 	Offline       State = "OFFLINE"

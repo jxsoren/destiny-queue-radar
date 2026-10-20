@@ -40,6 +40,10 @@ export function statusLine(p: Player, now: number): StatusLine {
       const elapsed = since(s.startedAt, now);
       return { text, timer: elapsed === null ? null : formatTimer(elapsed), lock: false };
     }
+    case 'QUEUED': {
+      const place = placeLabel(s);
+      return plain((place === '—' ? 'IN MATCHMAKING' : `${place} · IN MATCHMAKING`) + lastPvp(s, now));
+    }
     case 'LIKELY_QUEUING': {
       const ago = since(s.lastPvpEndedAt, now);
       const what = up(s.lastPvpPlaylist) || 'PVP';

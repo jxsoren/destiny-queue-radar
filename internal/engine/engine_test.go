@@ -871,3 +871,71 @@ func TestEngine_RefreshPollsCarryTheRequestID(t *testing.T) {
 		t.Errorf("refresh poll request ID = %q, want refresh-req", got)
 	}
 }
+
+func (f *fakeProfiles) setProfile(id string, p *bungie.Profile) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.profiles[id] = p
+}
+
+func TestEngine_StaleProfileKeepsPreviousStatus(t *testing.T) {
+	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
+	st.watch(1, player("p1"))
+	t0 := time.Date(2026, 10, 17, 4, 13, 30, 0, time.UTC)
+	pr.setProfile("p1", &bungie.Profile{MintedAt: t0})
+	var mu sync.Mutex
+	classified := map[time.Time]int{}
+	byMint := classifyFunc(func(p *bungie.Profile, _ status.Status, _ time.Time) (status.Status, bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		classified[p.MintedAt]++
+		if p.MintedAt.Before(t0) {
+			return status.Status{State: status.NotInPvP}, true
+		}
+		return status.Status{State: status.Queued}, true
+	})
+	cfg := testConfig()
+	cfg.Interval = 10 * time.Millisecond
+	e := New(cfg, st, pr, noHistory{}, byMint, h, quietLog())
+	run(t, e)
+
+	eventually(t, "fresh poll saved", func() bool { return st.get("p1").Status.State == status.Queued })
+	pr.setProfile("p1", &bungie.Profile{MintedAt: t0.Add(-time.Minute)}) // an older cache node answers
+	saves := st.count(st.saves, "p1")
+	eventually(t, "3 stale polls", func() bool { return st.count(st.saves, "p1") >= saves+3 })
+
+	if got := st.get("p1").Status.State; got != status.Queued {
+		t.Errorf("state = %s after stale polls, want QUEUED kept", got)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if n := classified[t0.Add(-time.Minute)]; n != 0 {
+		t.Errorf("stale profile classified %d times", n)
+	}
+}
+
+func TestEngine_UnmintedProfilesAreNeverStale(t *testing.T) {
+	st, pr, h := newFakeStore(), newFakeProfiles(), &fakeHub{active: []int64{1}}
+	st.watch(1, player("p1"))
+	pr.setProfile("p1", &bungie.Profile{MintedAt: time.Date(2026, 10, 17, 4, 0, 0, 0, time.UTC)})
+	var mu sync.Mutex
+	calls := 0
+	counting := classifyFunc(func(*bungie.Profile, status.Status, time.Time) (status.Status, bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+		return status.Status{State: status.NotInPvP}, true
+	})
+	cfg := testConfig()
+	cfg.Interval = 10 * time.Millisecond
+	e := New(cfg, st, pr, noHistory{}, counting, h, quietLog())
+	run(t, e)
+
+	eventually(t, "minted poll", func() bool { return st.count(st.saves, "p1") >= 1 })
+	pr.setProfile("p1", &bungie.Profile{}) // no responseMintedTimestamp
+	eventually(t, "unminted polls classified", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return calls >= 3
+	})
+}

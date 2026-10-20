@@ -377,6 +377,10 @@ func (e *Engine) poll(ctx context.Context, id string) {
 
 	var next status.Status
 	switch {
+	case err == nil && e.stale(id, profile):
+		// An older cache answered: what it says is already superseded, so keep the status.
+		e.log.DebugContext(ctx, "stale profile", "player", id, "minted", profile.MintedAt)
+		next = prev.Status
 	case err == nil:
 		var decided bool
 		next, decided = e.classifier.Classify(profile, prev.Status, now)
@@ -419,6 +423,25 @@ func (e *Engine) poll(ctx context.Context, id string) {
 	if !next.Equal(prev.Status) {
 		e.publish(ctx, id, next, now)
 	}
+}
+
+// stale reports whether p was minted before a profile already seen for id, and otherwise
+// records its mint time. Profiles without one are never stale.
+func (e *Engine) stale(id string, p *bungie.Profile) bool {
+	if p.MintedAt.IsZero() {
+		return false
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	en, ok := e.entries[id]
+	if !ok {
+		return false
+	}
+	if p.MintedAt.Before(en.lastMinted) {
+		return true
+	}
+	en.lastMinted = p.MintedAt
+	return false
 }
 
 // maxHistoryCharacters is how many characters a cold start looks at; Destiny allows three.

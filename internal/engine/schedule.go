@@ -16,6 +16,7 @@ type entry struct {
 	manualOp   string    // request ID of the pending manual refresh
 	pollOp     string    // request ID of the poll in flight
 	inFlight   bool
+	lastMinted time.Time // newest responseMintedTimestamp seen; resets when the entry is dropped
 }
 
 // pickDue returns up to limit players to poll now: manual refreshes first, then players whose

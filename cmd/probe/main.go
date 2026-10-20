@@ -112,6 +112,9 @@ func run(names []string, interval time.Duration, out string) error {
 	}
 }
 
+// newest is the latest mint time seen per player, so stale cached responses can be marked.
+var newest = map[string]time.Time{}
+
 func pollAll(ctx context.Context, client *bungie.Client, m *manifest.Manifest, rec *probe.Recorder, label *probe.Label, targets []target) {
 	for _, t := range targets {
 		if ctx.Err() != nil {
@@ -132,7 +135,13 @@ func pollAll(ctx context.Context, client *bungie.Client, m *manifest.Manifest, r
 		if err := rec.Record(now, lbl, s, p.Raw); err != nil {
 			log.Printf("%s: record: %v", t.name, err)
 		}
-		fmt.Printf("%s [%s] %s took=%s\n", now.Format("15:04:05"), lbl, s, took)
+		mark := ""
+		if p.MintedAt.Before(newest[t.name]) {
+			mark = " STALE"
+		} else {
+			newest[t.name] = p.MintedAt
+		}
+		fmt.Printf("%s [%s] %s took=%s%s\n", now.Format("15:04:05"), lbl, s, took, mark)
 	}
 }
 

@@ -6,6 +6,7 @@ import { columnOf, groupPlayers } from './columns';
 describe('columnOf', () => {
   test.each<[State, string]>([
     ['IN_MATCH', 'match'],
+    ['QUEUED', 'queue'],
     ['LIKELY_QUEUING', 'queue'],
     ['NOT_IN_PVP', 'idle'],
     ['', 'idle'],
@@ -31,6 +32,14 @@ describe('groupPlayers', () => {
       makePlayer({ membershipId: 'new', status: { state: 'LIKELY_QUEUING', lastPvpEndedAt: iso(30_000) } }),
     ]);
     expect(g.queue.map((p) => p.membershipId)).toEqual(['new', 'old']);
+  });
+
+  test('queuing: confirmed queues before guesses', () => {
+    const g = groupPlayers([
+      makePlayer({ membershipId: 'guess', status: { state: 'LIKELY_QUEUING', lastPvpEndedAt: iso(30_000) } }),
+      makePlayer({ membershipId: 'queued', status: { state: 'QUEUED', place: 'ORBIT' } }),
+    ]);
+    expect(g.queue.map((p) => p.membershipId)).toEqual(['queued', 'guess']);
   });
 
   test('others: by name, case-insensitive, unnamed last', () => {

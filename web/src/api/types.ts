@@ -3,7 +3,7 @@
 // participantJSON and searchResultJSON.
 
 /** status.State; "" means not yet polled. */
-export type State = '' | 'IN_MATCH' | 'LIKELY_QUEUING' | 'NOT_IN_PVP' | 'OFFLINE' | 'PRIVATE' | 'NOT_FOUND';
+export type State = '' | 'IN_MATCH' | 'QUEUED' | 'LIKELY_QUEUING' | 'NOT_IN_PVP' | 'OFFLINE' | 'PRIVATE' | 'NOT_FOUND';
 
 /** status.Place; refines NOT_IN_PVP. */
 export type Place = 'ORBIT' | 'SOCIAL' | 'PVE';

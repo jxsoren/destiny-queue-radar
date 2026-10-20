@@ -118,6 +118,73 @@ func TestClassify_CurrentState(t *testing.T) {
 	}
 }
 
+// queued is a player in Orbit whose transitory activity counts a matchmaking lobby.
+func queued(players int) *bungie.Profile {
+	p := profile(true, orbitActivityHash, 0, 0)
+	p.ProfileTransitoryData.Data.CurrentActivity = &bungie.TransitoryActivity{NumberOfPlayers: players}
+	return p
+}
+
+func TestClassify_Queued(t *testing.T) {
+	c := New(fakeLookup{})
+	tower := profile(true, 300, 87, 0)
+	tower.ProfileTransitoryData.Data.CurrentActivity = &bungie.TransitoryActivity{NumberOfPlayers: 12}
+	idle := profile(true, orbitActivityHash, 0, 0)
+	idle.ProfileTransitoryData.Data.CurrentActivity = &bungie.TransitoryActivity{}
+
+	tests := []struct {
+		name string
+		p    *bungie.Profile
+		want status.State
+	}{
+		{"orbit, lobby of 1", queued(1), status.Queued},
+		{"orbit, lobby of 9", queued(9), status.Queued},
+		{"orbit, no players", idle, status.NotInPvP},
+		{"orbit, no transitory activity", profile(true, orbitActivityHash, 0, 0), status.NotInPvP},
+		{"tower counts its own instance", tower, status.NotInPvP},
+	}
+	for _, tt := range tests {
+		if got := classify(t, c, tt.p, status.Status{}, now); got.State != tt.want {
+			t.Errorf("%s: state = %s, want %s", tt.name, got.State, tt.want)
+		}
+	}
+	if got := classify(t, c, queued(1), status.Status{}, now); got.Place != status.PlaceOrbit || got.Activity != "Orbit" {
+		t.Errorf("queued place=%s activity=%q, want ORBIT/Orbit", got.Place, got.Activity)
+	}
+}
+
+// Bungie sometimes omits transitory data for a player in a match (seen once, Supremacy).
+func TestClassify_MatchWithoutTransitory(t *testing.T) {
+	c := New(fakeLookup{})
+	orbit := status.Status{State: status.NotInPvP, Place: status.PlaceOrbit, Activity: "Orbit"}
+	old := profile(false, 100, 84, 200)
+	old.CharacterActivities.Data["c1"] = bungie.CharacterActivities{DateActivityStarted: now.Add(-31 * time.Minute), CurrentActivityHash: 100, CurrentActivityModeHash: 84}
+
+	tests := []struct {
+		name string
+		prev status.Status
+		p    *bungie.Profile
+		want status.State
+	}{
+		{"queued → match", status.Status{State: status.Queued}, profile(false, 100, 84, 200), status.InMatch},
+		{"orbit → match", orbit, profile(false, 100, 84, 200), status.InMatch},
+		{"likely queuing → match", status.Status{State: status.LikelyQueuing}, profile(false, 100, 84, 200), status.InMatch},
+		{"match too old to trust", orbit, old, status.Offline},
+		{"already offline", status.Status{State: status.Offline}, profile(false, 100, 84, 200), status.Offline},
+		{"first poll", status.Status{}, profile(false, 100, 84, 200), status.Offline},
+		{"orbit activity", orbit, profile(false, orbitActivityHash, 0, 0), status.Offline},
+	}
+	for _, tt := range tests {
+		got := classify(t, c, tt.p, tt.prev, now)
+		if got.State != tt.want {
+			t.Errorf("%s: state = %s, want %s", tt.name, got.State, tt.want)
+		}
+		if tt.want == status.InMatch && (got.StartedAt == nil || !got.StartedAt.Equal(started) || got.Playlist != "Trials of Osiris") {
+			t.Errorf("%s: %+v, want the match's details", tt.name, got)
+		}
+	}
+}
+
 func TestClassify_Transitions(t *testing.T) {
 	c := New(fakeLookup{})
 	inTrials := status.Status{State: status.InMatch, Activity: "Burnout", Mode: "Trials of Osiris", Playlist: "Trials of Osiris", StartedAt: &started}
@@ -134,7 +201,11 @@ func TestClassify_Transitions(t *testing.T) {
 		{"match → orbit is likely queuing", inTrials, profile(true, orbitActivityHash, 0, 0), status.LikelyQueuing, &now},
 		{"match → tower is likely queuing", inTrials, profile(true, 300, 87, 0), status.LikelyQueuing, &now},
 		{"match → PvE is not queuing", inTrials, profile(true, 400, 4, 0), status.NotInPvP, &now},
-		{"match → offline records the end", inTrials, profile(false, 100, 84, 200), status.Offline, &now},
+		{"match → offline records the end", inTrials, profile(false, orbitActivityHash, 0, 0), status.Offline, &now},
+		{"match without transitory stays in match", inTrials, profile(false, 100, 84, 200), status.InMatch, nil},
+		{"match → queued records the end", inTrials, queued(1), status.Queued, &now},
+		{"queued → orbit with a recent match is likely queuing", status.Status{State: status.Queued, LastPvPEndedAt: &endedRecently, LastPvPPlaylist: "Trials of Osiris"},
+			profile(true, orbitActivityHash, 0, 0), status.LikelyQueuing, &endedRecently},
 		{"still within window", status.Status{State: status.LikelyQueuing, LastPvPEndedAt: &endedRecently, LastPvPPlaylist: "Trials of Osiris"},
 			profile(true, orbitActivityHash, 0, 0), status.LikelyQueuing, &endedRecently},
 		{"window expired", status.Status{State: status.LikelyQueuing, LastPvPEndedAt: &endedLongAgo, LastPvPPlaylist: "Trials of Osiris"},

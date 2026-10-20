@@ -29,6 +29,11 @@ describe('statusLine', () => {
     expect(line({ state: 'LIKELY_QUEUING', place: 'SOCIAL', activity: 'The Tower' }).text).toBe('THE TOWER · PVP ENDED RECENTLY');
   });
 
+  test('queued: in matchmaking, with the last match when known', () => {
+    expect(line({ state: 'QUEUED', place: 'ORBIT', activity: 'Orbit' }).text).toBe('ORBIT · IN MATCHMAKING');
+    expect(line({ state: 'QUEUED', place: 'ORBIT', lastPvpEndedAt: iso(120_000) }).text).toBe('ORBIT · IN MATCHMAKING · LAST PVP 2M');
+  });
+
   test('queuing without a place drops the place prefix', () => {
     expect(line({ state: 'LIKELY_QUEUING', lastPvpPlaylist: 'Competitive', lastPvpEndedAt: iso(120_000) }).text).toBe(
       'COMPETITIVE ENDED 2M AGO',

@@ -19,6 +19,7 @@ type Lookup interface {
 // index.jsonl schema, so field and JSON names are part of the recorded format.
 type Summary struct {
 	Player            string                `json:"player"`
+	Minted            time.Time             `json:"minted"`
 	Online            bool                  `json:"online"`
 	ActivitiesPrivacy bungie.Privacy        `json:"activitiesPrivacy"`
 	CharacterID       string                `json:"characterId,omitempty"`
@@ -54,6 +55,7 @@ type Summary struct {
 func Summarize(player string, p *bungie.Profile, l Lookup) Summary {
 	s := Summary{
 		Player:            player,
+		Minted:            p.MintedAt,
 		Online:            p.ProfileTransitoryData.Data != nil,
 		ActivitiesPrivacy: p.CharacterActivities.Privacy,
 		TransitoryPrivacy: p.ProfileTransitoryData.Privacy,
@@ -138,11 +140,15 @@ func (s Summary) String() string {
 	if !s.Started.IsZero() {
 		started = s.Started.Local().Format("01-02 15:04:05")
 	}
+	minted := "-"
+	if !s.Minted.IsZero() {
+		minted = s.Minted.Local().Format("15:04:05")
+	}
 	slots, closed := "-", "-"
 	if s.HasJoinability {
 		slots, closed = fmt.Sprint(s.OpenSlots), fmt.Sprint(s.ClosedReasons)
 	}
-	return fmt.Sprintf("%-22s online=%t class=%s priv=act:%s/trans:%s activity=%q pvp=%t mode=%q cat=%s playlist=%q started=%s party=%d ca=%t players=%d opp=%d modeType=%d slots=%s closed=%s mm=%t",
+	return fmt.Sprintf("%-22s online=%t class=%s priv=act:%s/trans:%s activity=%q pvp=%t mode=%q cat=%s playlist=%q started=%s party=%d ca=%t players=%d opp=%d modeType=%d slots=%s closed=%s mm=%t minted=%s",
 		s.Player, s.Online, className(s.ClassType), privacyName(s.ActivitiesPrivacy), privacyName(s.TransitoryPrivacy), s.Activity, s.ActivityIsPvP, s.Mode, s.ModeCategory,
-		s.Playlist, started, s.PartySize, s.HasCurrentActivity, s.Players, s.Opponents, s.ModeType, slots, closed, s.InMatchmaking)
+		s.Playlist, started, s.PartySize, s.HasCurrentActivity, s.Players, s.Opponents, s.ModeType, slots, closed, s.InMatchmaking, minted)
 }

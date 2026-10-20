@@ -21,6 +21,7 @@ export function columnOf(state: State): ColumnId {
   switch (state) {
     case 'IN_MATCH':
       return 'match';
+    case 'QUEUED':
     case 'LIKELY_QUEUING':
       return 'queue';
     case 'OFFLINE':
@@ -58,9 +59,14 @@ function byTime(get: (p: Player) => number, desc: boolean) {
   };
 }
 
+/** Puts players Bungie shows in matchmaking ahead of those only guessed to be queuing. */
+function queuedFirst(a: Player, b: Player): number {
+  return Number(b.status.state === 'QUEUED') - Number(a.status.state === 'QUEUED');
+}
+
 const SORTS: Record<ColumnId, (a: Player, b: Player) => number> = {
   match: byTime((p) => time(p.status.startedAt), false), // earliest start = longest in match
-  queue: byTime((p) => time(p.status.lastPvpEndedAt), true),
+  queue: (a, b) => queuedFirst(a, b) || byTime((p) => time(p.status.lastPvpEndedAt), true)(a, b),
   idle: byName,
   offline: byName,
 };

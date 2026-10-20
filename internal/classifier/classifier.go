@@ -14,6 +14,8 @@ const (
 	// queueWindow is how long after a PvP match ends a player in Orbit or a social space
 	// counts as likely re-queuing.
 	queueWindow = 5 * time.Minute
+	// matchMaxAge bounds how long a PvP activity is believed without transitory data.
+	matchMaxAge = 30 * time.Minute
 	// orbitActivityHash is the Orbit activity.
 	orbitActivityHash uint32 = 82913930
 )
@@ -42,7 +44,11 @@ func New(l Lookup) *Classifier { return &Classifier{lookup: l} }
 //     Classify returns prev and false, and the caller must treat the poll as failed.
 //   - Leaving a match, or starting a different match back to back, records
 //     LastPvPEndedAt and LastPvPPlaylist.
-//   - LIKELY_QUEUING needs the previous state to be IN_MATCH or LIKELY_QUEUING, the player
+//   - Bungie sometimes omits transitory data for a player in a match. When the player was
+//     online last poll (not OFFLINE or Unknown) and the active character's activity is PvP
+//     and started under matchMaxAge ago, the profile is IN_MATCH rather than OFFLINE. The cost:
+//     a player who quits the game mid-match shows IN_MATCH until matchMaxAge has passed.
+//   - LIKELY_QUEUING needs the previous state to be IN_MATCH, QUEUED or LIKELY_QUEUING, the player
 //     in Orbit or a known social space, and the last match to have ended under queueWindow ago.
 //     A detour through PvE or an unknown activity therefore ends the queuing guess.
 //   - Cold start (spec §5.4): on the first classification (prev.State Unknown) the caller may
@@ -52,6 +58,11 @@ func (c *Classifier) Classify(p *bungie.Profile, prev status.Status, now time.Ti
 	next, known := c.current(p)
 	if !known {
 		return prev, false
+	}
+	if next.State == status.Offline && prev.State != status.Offline && prev.State != status.Unknown {
+		if m, ok := c.matchWithoutTransitory(p, now); ok {
+			next = m
+		}
 	}
 	next.LastPvPEndedAt, next.LastPvPPlaylist = prev.LastPvPEndedAt, prev.LastPvPPlaylist
 
@@ -68,7 +79,7 @@ func (c *Classifier) Classify(p *bungie.Profile, prev status.Status, now time.Ti
 		}
 	}
 	if next.State == status.NotInPvP &&
-		(prev.State == status.InMatch || prev.State == status.LikelyQueuing || prev.State == status.Unknown) &&
+		(prev.State == status.InMatch || prev.State == status.Queued || prev.State == status.LikelyQueuing || prev.State == status.Unknown) &&
 		(next.Place == status.PlaceOrbit || next.Place == status.PlaceSocial) &&
 		next.LastPvPEndedAt != nil && now.Sub(*next.LastPvPEndedAt) < queueWindow {
 		next.State = status.LikelyQueuing
@@ -100,6 +111,10 @@ func (c *Classifier) HistoryPlaylist(a bungie.HistoryActivity) string {
 //   - OFFLINE needs a public transitory component with no data; it is checked before
 //     activities because offline players keep stale activity data.
 //   - IN_MATCH if the primary mode, any parent mode, or (absent a PvE mode) the activity is PvP.
+//   - QUEUED if in Orbit and the transitory activity counts players: while matchmaking, Bungie
+//     reports the lobby there (1, then filling up) though the activity is still Orbit. Seen once,
+//     for a Crucible queue; a PvE queue probably looks the same. Social spaces are left out
+//     because their instance likely has players of its own.
 //   - Otherwise NOT_IN_PVP, with a Place only for Orbit, known PvE modes and known social modes.
 func (c *Classifier) current(p *bungie.Profile) (status.Status, bool) {
 	acts, tp := p.CharacterActivities, p.ProfileTransitoryData
@@ -120,7 +135,26 @@ func (c *Classifier) current(p *bungie.Profile) (status.Status, bool) {
 	if !ok {
 		return status.Status{State: status.NotInPvP}, true
 	}
-	a := acts.Data[id]
+	st := c.activity(acts.Data[id])
+	if ca := tp.Data.CurrentActivity; st.State == status.NotInPvP && st.Place == status.PlaceOrbit && ca != nil && ca.NumberOfPlayers > 0 {
+		st.State = status.Queued
+	}
+	return st, true
+}
+
+// matchWithoutTransitory returns IN_MATCH for an active character in a PvP activity that
+// started under matchMaxAge ago, regardless of transitory data.
+func (c *Classifier) matchWithoutTransitory(p *bungie.Profile, now time.Time) (status.Status, bool) {
+	id, ok := p.ActiveCharacterID()
+	if !ok {
+		return status.Status{}, false
+	}
+	st := c.activity(p.CharacterActivities.Data[id])
+	return st, st.State == status.InMatch && st.StartedAt != nil && now.Sub(*st.StartedAt) < matchMaxAge
+}
+
+// activity classifies a character's current activity: IN_MATCH, or NOT_IN_PVP with a Place.
+func (c *Classifier) activity(a bungie.CharacterActivities) status.Status {
 	act, hasAct := c.lookup.Activity(a.CurrentActivityHash)
 	mode, hasMode := c.lookup.Mode(a.CurrentActivityModeHash)
 	playlist, _ := c.lookup.Activity(a.CurrentPlaylistActivityHash)
@@ -132,7 +166,7 @@ func (c *Classifier) current(p *bungie.Profile) (status.Status, bool) {
 			started := a.DateActivityStarted
 			st.StartedAt = &started
 		}
-		return st, true
+		return st
 	}
 
 	st.State = status.NotInPvP
@@ -145,7 +179,7 @@ func (c *Classifier) current(p *bungie.Profile) (status.Status, bool) {
 	case hasMode && mode.Category == manifest.CategoryNone:
 		st.Place = status.PlaceSocial
 	}
-	return st, true
+	return st
 }
 
 func (c *Classifier) isPvP(a bungie.CharacterActivities, act manifest.Activity, hasAct bool, mode manifest.Mode, hasMode bool) bool {
