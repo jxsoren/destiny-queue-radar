@@ -15,7 +15,7 @@ const players = [
 test('each player sits in its column, with counts', () => {
   render(<BoardView players={players} now={NOW} />);
   expect(within(screen.getByRole('region', { name: /^IN MATCH/ })).getByTestId('card-m1')).toBeInTheDocument();
-  expect(within(screen.getByRole('region', { name: /^LIKELY QUEUING/ })).getByTestId('card-q1')).toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: /^QUEUING/ })).getByTestId('card-q1')).toBeInTheDocument();
   expect(within(screen.getByRole('region', { name: /^NOT IN PVP/ })).getByTestId('card-i1')).toBeInTheDocument();
   const offline = screen.getByRole('region', { name: /^OFFLINE/ });
   expect(within(offline).getAllByRole('listitem')).toHaveLength(2);

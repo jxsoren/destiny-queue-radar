@@ -46,7 +46,7 @@ export function QueueWhileBusy() {
             <Arrow size={24} />
           </span>
           <div className="moment-col moment-after">
-            <p className="tele px-3 py-2 text-dim">QUEUING?</p>
+            <p className="tele px-3 py-2 text-dim">QUEUING</p>
             <ul className="grid gap-px bg-line">
               <PlayerCard player={ROOK_QUEUING} now={SAMPLE_NOW} managing={false} />
             </ul>

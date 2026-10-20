@@ -12,7 +12,7 @@ export interface ColumnDef {
 
 export const COLUMNS: readonly ColumnDef[] = [
   { id: 'match', title: 'IN MATCH', label: 'IN MATCH' },
-  { id: 'queue', title: 'LIKELY QUEUING', label: 'QUEUING?' },
+  { id: 'queue', title: 'QUEUING', label: 'QUEUING' },
   { id: 'idle', title: 'NOT IN PVP', label: 'NOT IN PVP' },
   { id: 'offline', title: 'OFFLINE', label: 'OFFLINE' },
 ];
