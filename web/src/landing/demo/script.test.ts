@@ -44,3 +44,10 @@ test('the script moves players through the columns and loops', () => {
   vi.advanceTimersByTime(DEMO_STEP_MS * 3);
   expect(state).toBe(before);
 });
+
+test('banners are drawn locally too, at the emblem banner shape', () => {
+  for (const p of demoPlayers(Date.now())) {
+    expect(p.emblemBackgroundPath.startsWith('data:image/svg+xml,')).toBe(true);
+    expect(decodeURIComponent(p.emblemBackgroundPath)).toContain('viewBox="0 0 474 96"');
+  }
+});

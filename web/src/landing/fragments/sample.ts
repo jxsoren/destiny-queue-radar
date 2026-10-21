@@ -1,6 +1,6 @@
 import type { Match, Participant, Player, Status } from '../../api/types';
 import { buildGroups, type PlayerRow } from '../../palette/rows';
-import { demoEmblem } from '../demo/script';
+import { demoBanner, demoEmblem } from '../demo/script';
 
 // Made-up players for the landing page's fragments. The page labels them as made up and never links them.
 
@@ -57,13 +57,13 @@ export function lobbyRows(query: string, watched: ReadonlySet<string>): PlayerRo
 export const SAMPLE_NOW = Date.parse('2026-10-16T20:00:00Z');
 const ago = (ms: number) => new Date(SAMPLE_NOW - ms).toISOString();
 
-function rook(status: Status, polled: boolean): Player {
+function samplePlayer(membershipId: string, bungieName: string, seed: number, status: Status, polled = true): Player {
   return {
     membershipType: 3,
-    membershipId: ROOK_ID,
-    bungieName: 'Rook#2093',
-    emblemPath: demoEmblem(0),
-    emblemBackgroundPath: '',
+    membershipId,
+    bungieName,
+    emblemPath: demoEmblem(seed),
+    emblemBackgroundPath: demoBanner(seed),
     status,
     lastPolledAt: polled ? ago(5_000) : null,
     lastSuccessAt: polled ? ago(5_000) : null,
@@ -71,6 +71,8 @@ function rook(status: Status, polled: boolean): Player {
     addedAt: ago(polled ? 86_400_000 : 2_000),
   };
 }
+
+const rook = (status: Status, polled: boolean) => samplePlayer(ROOK_ID, 'Rook#2093', 0, status, polled);
 
 /** Just added from the palette: the first check has not finished. */
 export const ROOK_CHECKING = rook({ state: '' }, false);
@@ -81,3 +83,12 @@ export const ROOK_QUEUING = rook(
   { state: 'LIKELY_QUEUING', place: 'ORBIT', lastPvpPlaylist: 'Trials', lastPvpEndedAt: ago(60_000) },
   true,
 );
+
+/** The first screen's board preview (spec §5.1): two in a match, one queuing. */
+export const PREVIEW_IN_MATCH: readonly Player[] = [
+  ROOK_IN_MATCH,
+  samplePlayer('demo-mire', 'Mire#3307', 1, { state: 'IN_MATCH', playlist: 'Competitive', activity: 'Javelin-4', startedAt: ago(107_000) }),
+];
+export const PREVIEW_QUEUING: readonly Player[] = [
+  samplePlayer('demo-kestrel', 'Kestrel#0412', 2, { state: 'LIKELY_QUEUING', place: 'ORBIT', lastPvpPlaylist: 'Control', lastPvpEndedAt: ago(120_000) }),
+];

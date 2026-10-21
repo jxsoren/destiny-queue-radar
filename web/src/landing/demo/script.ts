@@ -19,6 +19,19 @@ export function demoEmblem(seed: number): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+const BANNER_GROUNDS = ['#3b1f2b', '#1f3b4d', '#4a3b1f', '#2b3b2a', '#3d2a4f', '#1f2f3a'];
+
+/** A 474×96 emblem banner drawn in code: the emblem's mark at the left, a striped field behind the name. */
+export function demoBanner(seed: number): string {
+  const ground = BANNER_GROUNDS[seed % BANNER_GROUNDS.length];
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 474 96">` +
+    `<defs><pattern id="s" width="18" height="96" patternUnits="userSpaceOnUse" patternTransform="skewX(-30)"><rect width="6" height="96" fill="#ffffff" fill-opacity=".05"/></pattern></defs>` +
+    `<rect width="474" height="96" fill="${ground}"/><rect width="474" height="96" fill="url(#s)"/>` +
+    `<g transform="translate(14 14) scale(1.9)">${MARKS[seed % MARKS.length]}</g></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 const isoAgo = (now: number, ms: number) => new Date(now - ms).toISOString();
 
 interface Seed {
@@ -43,7 +56,7 @@ export function demoPlayers(now: number): Player[] {
     membershipId: s.id,
     bungieName: s.name,
     emblemPath: demoEmblem(i),
-    emblemBackgroundPath: '',
+    emblemBackgroundPath: demoBanner(i),
     status: s.status(now),
     lastPolledAt: isoAgo(now, 5_000),
     lastSuccessAt: isoAgo(now, 5_000),
