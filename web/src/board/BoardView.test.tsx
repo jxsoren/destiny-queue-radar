@@ -22,24 +22,34 @@ test('each player sits in its column, with counts', () => {
   expect(offline).toHaveAccessibleName('OFFLINE 02');
 });
 
-test('the in-match count turns red when above zero', () => {
+test('the stats block: in-match bar is green while anyone is in a match, and the watchlist row', () => {
   render(<BoardView players={players} now={NOW} />);
-  const desktop = screen.getByTestId('counts');
-  expect(within(desktop).getByTestId('count-match')).toHaveClass('text-accent');
-  expect(within(desktop).getByTestId('count-queue')).not.toHaveClass('text-accent');
+  expect(screen.getByTestId('bar-match')).toHaveClass('bg-live');
+  expect(screen.getByTestId('bar-queue')).toHaveClass('bg-white');
+  expect(screen.getByTestId('count-offline')).toHaveTextContent('2');
+  expect(screen.getByTestId('watchlist')).toHaveTextContent('5 / 50');
 });
 
-test('phone tabs pick the visible column', async () => {
+test('on phones a stat bar filters the columns; a second tap or All resets', async () => {
   const user = userEvent.setup();
   render(<BoardView players={players} now={NOW} />);
-  expect(screen.getByRole('region', { name: /^IN MATCH/ })).not.toHaveClass('hidden');
-  expect(screen.getByRole('region', { name: /^OFFLINE/ })).toHaveClass('hidden');
-  await user.click(screen.getByRole('button', { name: /OFFLINE/ }));
-  expect(screen.getByRole('button', { name: /OFFLINE/ })).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByRole('button', { name: /OFFLINE/ })).toHaveClass('border-ink');
-  expect(screen.getByRole('button', { name: /IN MATCH/ })).not.toHaveClass('border-ink');
-  expect(screen.getByRole('region', { name: /^OFFLINE/ })).not.toHaveClass('hidden');
-  expect(screen.getByRole('region', { name: /^IN MATCH/ })).toHaveClass('hidden');
+  const region = (name: RegExp) => screen.getByRole('region', { name });
+  expect(region(/^IN MATCH/)).not.toHaveClass('hidden');
+  expect(region(/^OFFLINE/)).not.toHaveClass('hidden');
+
+  await user.click(screen.getByRole('button', { name: /^Offline/ }));
+  expect(screen.getByRole('button', { name: /^Offline/ })).toHaveAttribute('aria-pressed', 'true');
+  expect(region(/^OFFLINE/)).not.toHaveClass('hidden');
+  expect(region(/^IN MATCH/)).toHaveClass('hidden');
+
+  await user.click(screen.getByRole('button', { name: /^Offline/ }));
+  expect(region(/^IN MATCH/)).not.toHaveClass('hidden');
+
+  await user.click(screen.getByRole('button', { name: /^In match/ }));
+  expect(region(/^OFFLINE/)).toHaveClass('hidden');
+  await user.click(screen.getByRole('button', { name: 'All' }));
+  expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
+  expect(region(/^OFFLINE/)).not.toHaveClass('hidden');
 });
 
 test('renders the slot it is given', () => {

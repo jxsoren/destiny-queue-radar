@@ -39,7 +39,7 @@ describe('Board', () => {
     expect(screen.getByText('CONNECTING…')).toBeInTheDocument();
     snapshot();
     expect(within(screen.getByRole('region', { name: /^NOT IN PVP/ })).getByTestId('card-4611')).toBeInTheDocument();
-    expect(screen.getByText(/WATCHING/)).toHaveTextContent('WATCHING 01 / 50');
+    expect(screen.getByTestId('watchlist')).toHaveTextContent('1 / 50');
     expect(screen.getByRole('button', { name: /TRACK A PLAYER/ })).toBeInTheDocument();
   });
 

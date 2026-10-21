@@ -17,11 +17,11 @@ export interface ColumnProps {
 export function Column({ def, players, now, managing, hiddenOnPhone, onRemove, onRecheck, recheckDisabled }: ColumnProps) {
   const headingId = `column-${def.id}`;
   return (
-    <section aria-labelledby={headingId} className={`min-h-[8rem] bg-ground ${hiddenOnPhone ? 'hidden md:block' : ''}`}>
-      <h2 id={headingId} className="tele flex justify-between px-3 py-2 text-dim">
+    <section aria-labelledby={headingId} className={`min-h-[4rem] ${hiddenOnPhone ? 'hidden md:block' : ''}`}>
+      <h2 id={headingId} className="t-head on-mist mb-2 flex justify-between">
         <span>{def.title}</span> <data value={players.length}>{pad2(players.length)}</data>
       </h2>
-      <ul className="grid gap-px bg-line">
+      <ul className="grid gap-2">
         {players.map((p) => (
           <PlayerCard
             key={p.membershipId}
