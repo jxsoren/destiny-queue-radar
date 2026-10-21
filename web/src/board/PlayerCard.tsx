@@ -1,7 +1,8 @@
+import type { CSSProperties } from 'react';
 import type { Player } from '../api/types';
 import { formatAgo } from '../lib/format';
 import { columnOf } from './columns';
-import { Emblem } from './Emblem';
+import { emblemUrl } from './Emblem';
 import { LockIcon } from './LockIcon';
 import { displayName, splitName } from './names';
 import { staleFor } from './stale';
@@ -16,52 +17,50 @@ export interface PlayerCardProps {
   recheckDisabled?: boolean;
 }
 
+/** One player on their emblem banner (spec §3.2). The banner art carries the emblem, so no icon is drawn. */
 export function PlayerCard({ player, now, managing, onRemove, onRecheck, recheckDisabled = false }: PlayerCardProps) {
   const column = columnOf(player.status.state);
+  const live = column === 'match';
   const muted = column === 'offline';
   const line = statusLine(player, now);
   const stale = staleFor(player, now);
   const label = displayName(player);
   const { name, code } = splitName(label);
-  const ink = muted ? 'text-dim' : 'text-ink';
+  const banner = emblemUrl(player.emblemBackgroundPath);
+  const style: CSSProperties | undefined = banner ? { backgroundImage: `url("${banner}")` } : undefined;
 
   return (
     <li
       data-testid={`card-${player.membershipId}`}
-      className={`card-enter flex items-center gap-3 bg-surface px-3 py-3 ${column === 'match' ? 'shadow-edge' : ''}`}
+      style={style}
+      className={`card-enter banner-card frame flex items-center gap-2 pl-[21%] pr-2 ${live ? 'is-live' : ''} ${muted ? 'is-muted' : ''}`}
     >
-      <Emblem key={player.emblemPath} path={player.emblemPath} muted={muted} />
       <div className="min-w-0 flex-1">
-        <p className={`truncate text-[15px] font-semibold leading-tight ${ink}`}>
+        <p className="text-shadow-strong truncate text-[15px] font-bold leading-tight">
           {name}
-          <span className="font-normal text-dim">{code}</span>
+          <span className="font-normal opacity-70">{code}</span>
         </p>
-        <p className={`tele mt-1 flex flex-wrap items-center gap-x-2 ${ink}`}>
+        <p className={`t-status text-shadow-strong mt-0.5 flex flex-wrap items-center gap-x-2 ${live ? 'text-live-text' : ''}`}>
           {line.lock && <LockIcon />}
           <span>{line.text}</span>
-          {line.timer && <span className="tabular-nums">{line.timer}</span>}
+          {line.timer && <span>{line.timer}</span>}
           {stale !== null && <span className="text-stale">STALE · {formatAgo(stale)}</span>}
         </p>
       </div>
       {managing && (
-        <div className="flex shrink-0 gap-px bg-line">
+        <div className="flex shrink-0 gap-1.5">
           {player.status.state === 'NOT_FOUND' && (
             <button
               type="button"
               aria-label={`Re-check ${label}`}
               disabled={recheckDisabled}
               onClick={onRecheck}
-              className="h-9 w-9 bg-raised text-base text-ink hover:bg-ink hover:text-ground disabled:text-dim disabled:hover:bg-raised"
+              className="btn-round text-sm"
             >
               ↻
             </button>
           )}
-          <button
-            type="button"
-            aria-label={`Stop watching ${label}`}
-            onClick={() => onRemove?.(player)}
-            className="h-9 w-9 bg-raised text-lg text-ink hover:bg-accent hover:text-ground"
-          >
+          <button type="button" aria-label={`Stop watching ${label}`} onClick={() => onRemove?.(player)} className="btn-round text-base">
             ×
           </button>
         </div>

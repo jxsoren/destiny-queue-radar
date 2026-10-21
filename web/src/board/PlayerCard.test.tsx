@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import type { Player, Status } from '../api/types';
@@ -16,33 +16,32 @@ function renderCard(player: Player, props: Partial<PlayerCardProps> = {}) {
 const withStatus = (status: Status, over: Partial<Player> = {}) => makePlayer({ status, ...over });
 
 describe('PlayerCard', () => {
-  test('name with the code split out, and the emblem from bungie.net', () => {
-    const card = renderCard(makePlayer());
+  test('name with the code split out, on the emblem banner from bungie.net', () => {
+    const card = renderCard(makePlayer({ emblemBackgroundPath: '/common/destiny2_content/icons/vex_bg.jpg' }));
     expect(screen.getByText('Vex')).toBeInTheDocument();
-    expect(screen.getByText('#1111')).toHaveClass('text-dim');
-    expect(card.querySelector('img')).toHaveAttribute('src', 'https://www.bungie.net/common/destiny2_content/icons/vex.jpg');
-  });
-
-  test('a broken emblem falls back to a plain square', () => {
-    const card = renderCard(makePlayer());
-    fireEvent.error(card.querySelector('img')!);
+    expect(screen.getByText('#1111')).toHaveClass('opacity-70');
+    expect(card.style.backgroundImage).toContain('https://www.bungie.net/common/destiny2_content/icons/vex_bg.jpg');
     expect(card.querySelector('img')).toBeNull();
   });
 
-  test('in match: red edge, playlist and map, live timer', () => {
+  test('no banner, or a banner from anywhere else, falls back to the plain slate card', () => {
+    expect(renderCard(makePlayer({ membershipId: 'a' })).style.backgroundImage).toBe('');
+    expect(renderCard(makePlayer({ membershipId: 'b', emblemBackgroundPath: 'https://evil.example/x.jpg' })).style.backgroundImage).toBe('');
+  });
+
+  test('in match: green edge, playlist and map, live timer', () => {
     const card = renderCard(withStatus({ state: 'IN_MATCH', playlist: 'Trials of Osiris', activity: 'Burnout', startedAt: iso(252_000) }));
-    expect(card).toHaveClass('shadow-edge');
+    expect(card).toHaveClass('is-live');
     expect(card).toHaveTextContent('TRIALS OF OSIRIS · BURNOUT');
     expect(card).toHaveTextContent('04:12');
   });
 
-  test('offline group is greyscale and dimmed; private shows the lock', () => {
+  test('offline group is greyscale; private shows the lock', () => {
     const card = renderCard(withStatus({ state: 'PRIVATE' }));
-    expect(card).not.toHaveClass('shadow-edge');
-    expect(card.querySelector('img')).toHaveClass('grayscale');
+    expect(card).not.toHaveClass('is-live');
+    expect(card).toHaveClass('is-muted');
     expect(card).toHaveTextContent('PRIVATE PROFILE');
     expect(screen.getByTestId('lock')).toBeInTheDocument();
-    expect(screen.getByText('Vex')).toHaveClass('text-dim');
   });
 
   test('stale marker after three minutes without a successful poll', () => {
