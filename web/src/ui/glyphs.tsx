@@ -1,7 +1,9 @@
+import type { ReactNode } from 'react';
+
 // White-on-colour perk glyphs, drawn on a 30×30 grid. Always decorative.
 type GlyphProps = { className?: string };
 
-const svg = (className: string | undefined, children: React.ReactNode) => (
+const svg = (className: string | undefined, children: ReactNode) => (
   <svg aria-hidden="true" viewBox="0 0 30 30" className={className}>
     {children}
   </svg>

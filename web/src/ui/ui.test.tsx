@@ -24,6 +24,10 @@ test('the radar mark is decorative, and two marks never share gradient ids', () 
   for (const mark of screen.getAllByTestId('radar-mark')) expect(mark).toHaveAttribute('aria-hidden', 'true');
   const ids = [...container.querySelectorAll('linearGradient')].map((g) => g.id);
   expect(new Set(ids).size).toBe(2);
+  for (const mark of screen.getAllByTestId('radar-mark')) {
+    const gold = mark.querySelector('linearGradient')!.id;
+    expect(mark.querySelector('rect')!.getAttribute('fill')).toBe(`url(#${gold})`);
+  }
 });
 
 test('prompt glyphs stay out of accessible names', () => {

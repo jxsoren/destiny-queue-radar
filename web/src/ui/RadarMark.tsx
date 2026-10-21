@@ -2,7 +2,7 @@ import { useId } from 'react';
 
 /** The logo: Destiny's HUD radar in an exotic-gold item tile (spec §1). Decorative. */
 export function RadarMark({ size = 64, className = '' }: { size?: number; className?: string }) {
-  const id = useId().replace(/:/g, '');
+  const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   return (
     <svg
       data-testid="radar-mark"

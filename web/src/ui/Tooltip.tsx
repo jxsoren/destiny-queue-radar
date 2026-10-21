@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { AriaRole, ReactNode } from 'react';
 
 export interface TooltipCost {
   label: string;
@@ -8,7 +8,7 @@ export interface TooltipCost {
 
 export interface TooltipProps {
   id?: string;
-  role?: string;
+  role?: AriaRole;
   title: string;
   children: ReactNode;
   cost?: TooltipCost;
@@ -20,7 +20,7 @@ export function Tooltip({ id, role, title, children, cost, className = '' }: Too
   return (
     <div id={id} role={role} className={`tip ${className}`}>
       <p className="tip-title">{title}</p>
-      <p className="tip-text">{children}</p>
+      <div className="tip-text">{children}</div>
       {cost && (
         <p className="tip-cost">
           <span>
