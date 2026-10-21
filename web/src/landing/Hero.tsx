@@ -1,39 +1,58 @@
-import { LobbyFragment } from './fragments/Lobby';
-import { Arrow } from './Arrow';
-import { order } from './useReveal';
+import { PlayerCard } from '../board/PlayerCard';
+import { StatsBlock } from '../board/StatsBlock';
+import { PITCH } from '../ui/copy';
+import { DotsGlyph } from '../ui/glyphs';
+import { ItemHeader } from '../ui/ItemHeader';
+import { PREVIEW_IN_MATCH, PREVIEW_QUEUING, SAMPLE_NOW } from './fragments/sample';
+import { PerkTree } from './PerkTree';
 
-/** Claim 1, "You met a cheater": the lobby you just left, with the name you lost to picked. */
+// Sample counts that match the preview (spec §5.1).
+const SAMPLE_COUNTS = { match: 3, queue: 2, idle: 2, offline: 1 };
+
+/** The first screen: Queue Radar presented as an exotic item, with a live-looking board preview. */
 export function Hero() {
   return (
     <header className="hero">
-      <div className="hero-bar">
-        <p className="wordmark">Queue Radar</p>
-        <a href="/auth/login" className="hero-signin">
+      <div className="band on-mist flex items-center justify-end px-4 sm:px-8">
+        <a href="/auth/login" className="text-[13px] tracking-wide hover:underline">
           Sign in with Bungie
         </a>
       </div>
-      <div className="hero-column">
-        <h1 data-rise style={order(0)} className="hero-title">
-          Queue while
-          <br />
-          the cheater plays
-        </h1>
-        <p data-rise style={order(1)} className="hero-sentence">
-          Queue Radar privately watches the players you suspect of cheating and shows you when they’re in a PvP match.
-        </p>
-        <div data-rise style={order(2)} className="hero-actions">
-          <a href="/auth/login" className="button">
-            Sign in with Bungie
-          </a>
-          <a href="#board" className="text-link">
-            See it running
-            <Arrow size={14} />
-          </a>
+      <div className="hero-grid">
+        <div>
+          <ItemHeader size="lg" />
+          <StatsBlock
+            counts={SAMPLE_COUNTS}
+            label="Sample counts"
+            aside={
+              <a href="#board" className="material">
+                <span className="material-ring">
+                  <DotsGlyph />
+                </span>
+                <span>
+                  See it
+                  <br />
+                  running
+                </span>
+              </a>
+            }
+          />
+          <PerkTree />
+          <p className="hero-pitch on-mist">{PITCH}</p>
         </div>
-        <div data-rise style={order(3)} className="hero-fragment">
-          <div className="hero-drift">
-            <LobbyFragment />
-          </div>
+        <div role="figure" aria-label="Sample players in a match and queuing" className="hero-preview">
+          <p className="t-head on-mist mb-2">IN MATCH</p>
+          <ul className="grid gap-2">
+            {PREVIEW_IN_MATCH.map((p) => (
+              <PlayerCard key={p.membershipId} player={p} now={SAMPLE_NOW} managing={false} />
+            ))}
+          </ul>
+          <p className="t-head on-mist mb-2 mt-5">QUEUING</p>
+          <ul className="grid gap-2">
+            {PREVIEW_QUEUING.map((p) => (
+              <PlayerCard key={p.membershipId} player={p} now={SAMPLE_NOW} managing={false} />
+            ))}
+          </ul>
         </div>
       </div>
     </header>

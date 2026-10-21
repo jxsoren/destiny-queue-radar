@@ -42,48 +42,18 @@ test('the made-up names are labelled as made up and never linked', () => {
   for (const link of screen.getAllByRole('link')) expect(link.textContent ?? '').not.toMatch(/#\d{4}/);
 });
 
-const heroLobby = () => screen.getByRole('group', { name: 'Sample lobby with made-up players' });
-
-test('hero lobby: Rook#2093 is picked, and Enter watches him', async () => {
-  const user = userEvent.setup();
+test('the first screen is the item: name, type line, quoted flavour and the pitch', () => {
   render(<Landing />);
-  const lobby = heroLobby();
-  expect(lobby).toHaveAttribute('data-ui');
-  expect(within(lobby).getAllByRole('option')).toHaveLength(6);
-  const rook = within(lobby).getByRole('option', { name: 'Rook#2093' });
-  expect(rook).toHaveAttribute('aria-selected', 'true');
-  expect(rook).toHaveTextContent('ENTER TO WATCH');
-
-  await user.click(within(lobby).getByRole('combobox'));
-  await user.keyboard('{Enter}');
-  const watching = within(lobby).getByRole('option', { name: 'Rook#2093 · WATCHING' });
-  expect(watching).toHaveTextContent('WATCHING');
-  expect(watching).not.toHaveTextContent('ENTER TO WATCH');
+  expect(screen.getByRole('heading', { level: 1, name: 'Queue Radar' })).toBeInTheDocument();
+  expect(screen.getByText('Crucible Reconnaissance')).toBeInTheDocument();
+  expect(screen.getByText('“You are not hidden.”')).toBeInTheDocument();
+  expect(screen.getAllByText('See when the players you follow are in a PvP match.').length).toBeGreaterThan(0);
+  expect(screen.getByRole('figure', { name: 'Sample players in a match and queuing' })).toBeInTheDocument();
 });
 
-test('hero lobby: hovering moves the pick, clicking watches, and you cannot watch yourself', async () => {
-  const user = userEvent.setup();
-  render(<Landing />);
-  const lobby = heroLobby();
-  const pike = within(lobby).getByRole('option', { name: 'Pike#0937' });
-  await user.hover(pike);
-  expect(pike).toHaveAttribute('aria-selected', 'true');
-  expect(pike).toHaveTextContent('ENTER TO WATCH');
-  expect(within(lobby).getByRole('option', { name: 'Rook#2093' })).not.toHaveTextContent('ENTER TO WATCH');
-
-  await user.click(within(lobby).getByRole('option', { name: 'Wren#4420 · YOU' }));
-  expect(within(lobby).queryByRole('option', { name: /Wren#4420 · WATCHING/ })).toBeNull();
-
-  await user.click(within(lobby).getByRole('option', { name: 'Mire#3307' }));
-  expect(within(lobby).getByRole('option', { name: 'Mire#3307 · WATCHING' })).toBeInTheDocument();
-});
-
-test('hero lobby: typing filters the six names', async () => {
-  const user = userEvent.setup();
-  render(<Landing />);
-  const lobby = heroLobby();
-  await user.type(within(lobby).getByRole('combobox'), 'ro');
-  expect(within(lobby).getAllByRole('option').map((o) => o.getAttribute('aria-label'))).toEqual(['Rook#2093']);
+test('no cheater framing anywhere on the page', () => {
+  const { container } = render(<Landing />);
+  expect(container.textContent ?? '').not.toMatch(/cheat|lost to|beat you|suspect/i);
 });
 
 test('how it works: the slider steps through the four stops', () => {

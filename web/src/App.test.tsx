@@ -46,7 +46,7 @@ test('a logout event on the stream routes to the landing page', async () => {
   render(<App client={client(() => Promise.resolve(me))} stream={fakeStreamFactory} />);
   await screen.findByRole('button', { name: 'SIGN OUT' });
   act(() => FakeStream.latest().emit('logout', {}));
-  expect(await screen.findByRole('heading', { level: 1, name: /queue while the cheater plays/i })).toBeInTheDocument();
+  expect((await screen.findAllByRole('link', { name: /sign in with bungie/i })).length).toBeGreaterThan(0);
 });
 
 test('sign out routes to the landing page', async () => {
@@ -55,5 +55,5 @@ test('sign out routes to the landing page', async () => {
   render(<App client={c} stream={fakeStreamFactory} />);
   await user.click(await screen.findByRole('button', { name: 'SIGN OUT' }));
   expect(c.logout).toHaveBeenCalledOnce();
-  expect(await screen.findByRole('heading', { level: 1, name: /queue while the cheater plays/i })).toBeInTheDocument();
+  expect((await screen.findAllByRole('link', { name: /sign in with bungie/i })).length).toBeGreaterThan(0);
 });

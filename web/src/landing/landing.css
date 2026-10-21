@@ -1,553 +1,235 @@
-/* Landing page (Task 26). Colours come only from tokens.css: one ground, one ink, one accent,
-   with --surface and --raised as the tone steps. Square corners everywhere. */
+/* Landing (spec §5). The mist, band, tooltip, perk nodes and cards come from styles/index.css. */
 
 .landing {
-  /* Five type steps. */
-  --t-mega: clamp(56px, 9vw, 152px);
-  --t-display: clamp(32px, 4.4vw + 16px, 80px);
-  --t-lead: clamp(20px, 1.7vw, 26px);
-  --t-body: 17px;
-  --t-small: 14px;
-
-  /* One pair of page margins, one alignment, one section rhythm. */
-  --gutter: 24px;
-  --align: var(--gutter);
-  --section-gap: 96px;
-
-  background: var(--ground);
-  color: var(--ink);
-  font-family: var(--font-ui);
-  font-size: var(--t-body);
-  line-height: 1.5;
-  font-variant-numeric: tabular-nums;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
+  padding-bottom: 40px;
 }
-
-@media (min-width: 768px) {
-  .landing {
-    --gutter: 32px;
-    --section-gap: 144px;
-  }
+.landing-section {
+  position: relative;
+  padding: 56px clamp(16px, 6vw, 70px);
+  border-top: 2px solid rgba(255, 255, 255, 0.35);
 }
-
-@media (min-width: 1024px) {
-  .landing {
-    --align: 27vw;
-    --section-gap: 176px;
-  }
-}
-
-.landing main > * + * {
-  margin-top: var(--section-gap);
-}
-
-.landing a {
-  color: inherit;
-  text-decoration: none;
-}
-
-/* Shared pieces ------------------------------------------------------------------ */
-
-.landing .button {
-  display: inline-flex;
-  align-items: center;
-  min-height: 52px;
-  padding: 0 24px;
-  background: var(--accent);
-  color: var(--ground);
-  font-weight: 600;
-  font-size: var(--t-body);
-}
-.landing .button:hover {
-  background: var(--ink);
-}
-.landing .button-small {
-  min-height: 44px;
-  padding: 0 18px;
-}
-
-.landing .text-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 6px;
-}
-.landing .text-link:hover {
-  color: var(--accent);
-}
-
-.landing .section-title {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--t-display);
-  line-height: 0.98;
-  letter-spacing: -0.03em;
-  max-width: 17ch;
-}
-
-.landing .statement {
-  font-size: var(--t-lead);
-  line-height: 1.35;
-}
-
-.landing .small-note {
-  font-size: var(--t-small);
-  color: var(--ink-dim);
-}
-
-/* Hero: everything hangs on one alignment; the lobby fragment fills the rest of the first screen. */
-
-.hero {
-  min-height: 100svh;
-  padding: 0 var(--gutter) 32px;
-}
-
-.hero-bar {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  padding-top: 32px;
-  padding-left: calc(var(--align) - var(--gutter));
-}
-
-.wordmark {
-  font-family: var(--font-display);
-  font-size: var(--t-lead);
+.section-title {
+  font-weight: 700;
+  font-size: clamp(1.6rem, 3.5vw, 2.1rem);
   line-height: 1;
-  letter-spacing: -0.02em;
+  text-transform: uppercase;
 }
-
-.hero-signin {
-  font-size: var(--t-small);
-  font-weight: 600;
-}
-.hero-signin:hover {
-  color: var(--accent);
-}
-
-.hero-column {
-  margin-left: calc(var(--align) - var(--gutter));
-  padding-top: 18svh;
-}
-
-.hero-title {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--t-display);
-  line-height: 0.98;
-  letter-spacing: -0.03em;
-}
-
-.hero-sentence {
-  margin-top: 24px;
-  max-width: 34ch;
-  font-size: var(--t-lead);
-  line-height: 1.35;
-}
-
-.hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px 28px;
-  margin-top: 28px;
-}
-
-/* The fragment sits on one flat stage field (the direction's "one flat stage colour"), which runs
-   from the alignment to the page's right edge and off the bottom of the first screen. */
-.hero-fragment {
-  margin: 48px calc(-1 * var(--gutter)) 0;
-  padding: 24px var(--gutter) 32px;
-  background: var(--surface);
-}
-.hero-drift {
-  max-width: 560px;
-}
-
-@media (min-width: 1024px) {
-  .hero-bar {
-    padding-top: 40px;
-  }
-  .hero-column {
-    padding-top: 48px;
-  }
-  .hero-fragment {
-    margin: 40px calc(-1 * var(--gutter)) 0 -48px;
-    padding: 32px 48px 64px;
-  }
-}
-
-/* The palette as a fragment: its own outline, its own type. */
-[data-ui].lobby,
-[data-ui] .lobby {
-  outline: 1px solid var(--line);
-  outline-offset: -1px;
-}
-[data-ui] .lobby-input {
-  border-bottom: 1px solid var(--line);
-}
-/* On a phone the placeholder's example name must fit whole: a touch less tracking and padding. */
-@media (max-width: 479px) {
-  [data-ui] .lobby-input {
-    padding-inline: 12px;
-    letter-spacing: 0.04em;
-  }
-}
-[data-ui] .lobby-input:focus-visible {
-  outline: none;
-  border-bottom: 2px solid var(--ink);
-}
-[data-ui] .lobby-row {
-  min-height: 44px;
+.section-sub {
+  margin: 6px 0 22px;
+  font-weight: 300;
   font-size: 15px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
-/* How it works: two fields on one seam, one slider across both. -------------------- */
-
-.how {
+/* First screen (spec §5.1). */
+.hero-grid {
   display: grid;
-  grid-template-areas: 'stage' 'control' 'words';
+  gap: 40px;
+  padding: 40px clamp(16px, 6vw, 56px) 32px clamp(16px, 8vw, 110px);
 }
-
-.how-words {
-  grid-area: words;
-  background: var(--surface);
-  padding: 40px var(--gutter) 48px;
+@media (min-width: 1024px) {
+  .hero-grid {
+    grid-template-columns: minmax(0, 700px) 1fr;
+  }
 }
-
-.how-clause {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: max(32px, 9vw);
-  line-height: 0.98;
-  letter-spacing: -0.03em;
-  max-width: 12ch;
-}
-
-.how-note {
-  margin-top: 24px;
-  max-width: 40ch;
-}
-
-.how-stage {
-  grid-area: stage;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  min-height: 46svh;
-  max-height: 46svh;
-  overflow: hidden;
-  background: var(--raised);
-  padding: 32px var(--gutter) 0;
-}
-
-.how-fragment {
+.hero-preview {
+  align-self: center;
   width: 100%;
   max-width: 440px;
 }
-
-[data-ui].how-fragment .macro {
-  font-size: 22px;
-  line-height: 1.1;
+.hero-pitch {
+  max-width: 560px;
+  margin-top: 26px;
+  font-size: 17px;
+  line-height: 1.4;
 }
-@media (min-width: 768px) {
-  [data-ui].how-fragment .macro {
-    font-size: 28px;
-    line-height: 1;
+.material {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.material-ring {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 9999px;
+}
+.material-ring svg {
+  width: 18px;
+  height: 18px;
+}
+.perk-tree {
+  display: grid;
+  grid-template-columns: repeat(4, 66px);
+  grid-auto-rows: 66px;
+  gap: 18px;
+}
+@media (min-width: 640px) {
+  .perk-tree {
+    grid-template-columns: repeat(7, 66px);
   }
 }
-[data-ui] .how-card {
-  margin-top: 12px;
+.perk-tip {
+  max-width: 320px;
+  margin-top: 18px;
 }
 
-.how-control {
-  grid-area: control;
-  padding: 16px var(--gutter) 24px;
-  background: var(--surface);
-}
-
-.how-track {
-  position: relative;
-  height: 40px;
-}
-.how-track::before,
-.how-track-fill {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 16px;
-  height: 8px;
-}
-.how-track::before {
-  right: 0;
-  background: var(--ground);
-}
-.how-track-fill {
-  width: calc(20px + var(--progress, 0) * (100% - 40px));
-  background: var(--ink);
-}
-
-.how-range {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 40px;
-  margin: 0;
-  background: transparent;
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-}
-.how-range::-webkit-slider-runnable-track {
-  height: 40px;
-  background: transparent;
-}
-.how-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 40px;
-  height: 40px;
-  border: 0;
-  border-radius: 0;
-  background: var(--accent);
-}
-.how-range::-moz-range-track {
-  height: 40px;
-  background: transparent;
-}
-.how-range::-moz-range-thumb {
-  width: 40px;
-  height: 40px;
-  border: 0;
-  border-radius: 0;
-  background: var(--accent);
-}
-
-.how-stops {
+/* How it works (spec §5.2 item 1). */
+.how {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px 16px;
-  margin-top: 12px;
+  gap: 40px;
 }
-.how-stop {
-  font-size: 15px;
-  color: var(--ink-dim);
-  padding: 4px 0;
-}
-.how-stop:hover,
-.how-stop[aria-pressed='true'] {
-  color: var(--ink);
-}
-
 @media (min-width: 1024px) {
   .how {
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr auto;
-    grid-template-areas: 'words stage' 'control control';
-    min-height: 88svh;
-  }
-  .how-words,
-  .how-stage {
-    grid-row: 1 / 3;
-    padding-bottom: 136px;
-  }
-  .how-words {
-    grid-column: 1;
-    padding-top: 64px;
-  }
-  .how-stage {
-    grid-column: 2;
     align-items: center;
-    min-height: 0;
-    max-height: none;
-    padding-top: 64px;
-  }
-  .how-clause {
-    font-size: var(--t-display);
-  }
-  .how-control {
-    grid-row: 2;
-    grid-column: 1 / 3;
-    z-index: 1;
-    background: transparent;
-    padding: 0 28px 28px;
-  }
-  .how-track {
-    height: 32px;
-  }
-  .how-track::before,
-  .how-track-fill {
-    top: 12px;
-  }
-  .how-track-fill {
-    width: calc(16px + var(--progress, 0) * (100% - 32px));
-  }
-  .how-range {
-    height: 32px;
-  }
-  .how-range::-webkit-slider-runnable-track {
-    height: 32px;
-  }
-  .how-range::-webkit-slider-thumb {
-    width: 32px;
-    height: 32px;
-  }
-  .how-range::-moz-range-track {
-    height: 32px;
-  }
-  .how-range::-moz-range-thumb {
-    width: 32px;
-    height: 32px;
-  }
-  .how-stops {
-    display: flex;
-    justify-content: space-between;
-  }
-  .how-stop {
-    font-size: var(--t-body);
   }
 }
-
-/* Showcase: the live board across the full width. ----------------------------------- */
-
-.showcase {
-  padding: 0 var(--gutter);
+.how-clause {
+  font-weight: 700;
+  font-size: clamp(2rem, 4.5vw, 2.75rem);
+  line-height: 1.02;
+}
+.how-note {
+  max-width: 420px;
+  margin-top: 12px;
+  font-size: 15px;
+}
+.how-control {
+  position: relative;
+  max-width: 460px;
+  margin-top: 28px;
+}
+.how-range {
+  position: absolute;
+  left: 45px;
+  right: 45px;
+  top: 31px;
+  height: 4px;
+  appearance: none;
+  background: linear-gradient(90deg, var(--done) calc(var(--progress, 0) * 100%), rgba(255, 255, 255, 0.3) 0);
+}
+.how-range::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  appearance: none;
+  background: #fff;
+  transform: rotate(45deg);
+}
+.how-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  transform: rotate(45deg);
+}
+.how-stops {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.how-stop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 90px;
+  font-size: 12px;
+  pointer-events: auto;
+}
+.how-node {
+  font-weight: 700;
+  font-size: 18px;
+}
+.how-node svg {
+  width: 28px;
+  height: 28px;
+}
+.how-stage {
+  justify-self: end;
+  width: 100%;
+  max-width: 380px;
 }
 
-.showcase-head {
+/* The palette still inside How it works. */
+.lobby {
+  background: var(--tip-body);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.lobby-input {
+  margin: 10px 12px 4px;
+  padding: 7px 10px;
+  border: 2px solid #fff;
+  color: rgba(255, 255, 255, 0.55);
+  font-style: italic;
+  font-size: 13px;
+}
+.lobby-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  margin: 0 8px 5px;
+  padding: 0 10px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+/* The queue window (spec §5.2 item 3). */
+.moment {
   display: grid;
   gap: 24px;
-  margin-bottom: 48px;
+  align-items: center;
+  max-width: 900px;
 }
-
-.showcase-sentence {
-  max-width: 40ch;
-  font-size: var(--t-lead);
-  line-height: 1.35;
-}
-
-.showcase-foot {
-  display: grid;
-  gap: 12px;
-  margin-top: 24px;
-}
-.showcase-line {
-  max-width: 62ch;
-}
-
-@media (min-width: 1024px) {
-  .showcase-head {
-    grid-template-columns: 7fr 5fr;
-    align-items: end;
-    column-gap: 32px;
-  }
-  .showcase-foot {
-    grid-template-columns: 7fr 5fr;
-    column-gap: 32px;
-    align-items: baseline;
+@media (min-width: 768px) {
+  .moment {
+    grid-template-columns: 1fr auto 1fr;
   }
 }
-
-/* Features: the moment the match ends, then the table of states. ------------------- */
-
-.features {
-  padding: 0 var(--gutter);
+.statement {
+  max-width: 640px;
+  margin-bottom: 24px;
+  font-size: 15px;
+  line-height: 1.5;
 }
-
-.features-split {
-  display: grid;
-  gap: 40px;
-  margin-top: 48px;
-}
-
-/* Before above after, as one column of the board reads; the arrow points down the column. */
-[data-ui].moment {
-  display: grid;
-  gap: 8px;
-  width: 100%;
-  max-width: 520px;
-  justify-self: start;
-  outline: 1px solid var(--line);
-  outline-offset: -1px;
-  padding: 8px 8px 12px;
-}
-[data-ui] .moment-arrow {
-  display: flex;
-  justify-content: center;
-  transform: rotate(90deg);
-}
-
-@media (min-width: 1024px) {
-  .features-split {
-    grid-template-columns: 5fr 7fr;
-    column-gap: 32px;
-    align-items: center;
-  }
-}
-
 .states {
   width: 100%;
-  margin-top: 96px;
+  margin-top: 32px;
   border-collapse: collapse;
-  text-align: left;
+  background: var(--tip-body);
+  color: var(--tip-text);
+  font-size: 14px;
 }
 .states th,
 .states td {
+  padding: 10px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
   vertical-align: top;
 }
 .states thead th {
-  font-size: var(--t-body);
-  font-weight: 600;
-  padding: 16px 20px;
+  background: var(--tip-title);
+  color: #fff;
+  font-weight: 400;
+  font-size: 13px;
+  text-transform: uppercase;
 }
 .states tbody th {
-  font-size: var(--t-lead);
-  font-weight: 600;
-  line-height: 1.2;
-  padding: 20px;
+  color: #fff;
+  font-weight: 500;
 }
-.states tbody td {
-  padding: 20px;
-}
-.states tbody tr:nth-child(odd) {
-  background: var(--surface);
-}
-.states thead th:last-child,
-.states tbody td:last-child {
-  background: var(--ink);
-  color: var(--ground);
-}
-.states tbody td:last-child {
-  font-weight: 600;
-}
-.states thead th:last-child,
-.states tbody tr:not(:last-child) td:last-child {
-  border-bottom: 1px solid var(--ink);
-}
-
-@media (min-width: 1024px) {
-  .states {
-    table-layout: fixed;
-  }
-  .states thead th:first-child {
-    width: 34%;
-  }
-  .states thead th:last-child {
-    padding-top: 40px;
-  }
-}
-
-/* On a phone the table turns on its side: one block per state. */
-@media (max-width: 1023px) {
-  .states,
-  .states tbody,
-  .states tr,
-  .states th,
-  .states td {
-    display: block;
-  }
+@media (max-width: 767px) {
   .states thead {
     position: absolute;
     width: 1px;
@@ -555,361 +237,108 @@
     overflow: hidden;
     clip: rect(0 0 0 0);
   }
-  .states tbody tr {
-    padding: 20px;
+  .states tr,
+  .states th,
+  .states td {
+    display: block;
   }
-  .states tbody th {
-    padding: 0 0 8px;
-    font-size: 20px;
-  }
-  .states tbody td {
-    padding: 6px 0;
-    font-size: 16px;
-  }
-  .states tbody td::before {
-    content: attr(data-label) '. ';
-    font-weight: 600;
-  }
-  .states tbody td:last-child {
-    margin: 8px -20px -20px;
-    padding: 12px 20px;
+  .states td::before {
+    content: attr(data-label) ' · ';
+    color: #fff;
   }
 }
 
-/* About: facts beside one wide paragraph, then the questions. ------------------------ */
-
+/* Private by design (spec §5.2 item 4). */
 .about {
-  padding: 0 var(--gutter);
-}
-
-.about-row {
   display: grid;
   gap: 40px;
 }
-
-.about-paragraph {
-  font-size: 19px;
-  line-height: 1.4;
-  max-width: 52ch;
+@media (min-width: 1024px) {
+  .about {
+    grid-template-columns: 340px 1fr;
+  }
 }
-
-.about-facts {
+.about-facts div {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  grid-template-columns: 130px 1fr;
+  gap: 12px;
+  margin: 6px 0;
+  font-size: 16px;
 }
-.about-facts dt,
-.about-word {
-  font-size: var(--t-small);
-  color: var(--ink-dim);
+.about-facts dt {
+  text-align: right;
+  opacity: 0.9;
 }
 .about-facts dd {
-  font-size: var(--t-body);
-  font-weight: 600;
+  font-weight: 500;
 }
-
-.about-row-questions {
-  margin-top: 96px;
+.about-paragraph {
+  max-width: 340px;
+  margin-top: 20px;
+  font-size: 15px;
+  line-height: 1.5;
 }
-.about-word {
-  align-self: start;
-  font-weight: 400;
-  color: var(--ink);
-}
-
 .about-questions {
   display: grid;
-  gap: 32px;
+  gap: 14px;
 }
-.about-questions dt {
-  font-weight: 600;
-}
-.about-questions dd {
-  margin-top: 6px;
-}
-
-@media (min-width: 1024px) {
-  .about-row {
-    grid-template-columns: calc(var(--align) - var(--gutter)) 1fr;
-    gap: 0;
-  }
-  .about-paragraph {
-    grid-column: 2;
-    grid-row: 1;
-    max-width: calc(90vw - var(--align));
-    font-size: var(--t-lead);
-    line-height: 1.35;
-  }
-  .about-facts {
-    grid-column: 1;
-    grid-row: 1;
-    width: 160px;
-    grid-template-columns: 1fr;
-    align-content: start;
-  }
-  .about-row-questions {
-    margin-top: 120px;
-  }
+@media (min-width: 768px) {
   .about-questions {
     grid-template-columns: 1fr 1fr;
-    gap: 40px 64px;
-    max-width: calc(90vw - var(--align));
   }
 }
 
-/* CTA: the one deliberate rest. -------------------------------------------------- */
-
-.landing main > .cta {
-  margin-top: 0;
-  padding: 20svh var(--gutter) 14svh;
+/* Sign in and footer (spec §5.2 items 5–6). */
+.cta {
+  padding: 64px 16px;
+  text-align: center;
 }
 .cta-sentence {
-  max-width: 34ch;
-  margin-bottom: 24px;
-  font-size: 20px;
-  line-height: 1.4;
+  margin-bottom: 18px;
+  font-size: 22px;
 }
-
-@media (min-width: 1024px) {
-  .landing main > .cta {
-    padding: 30svh var(--gutter) 20svh var(--align);
-  }
-  .cta-sentence {
-    font-size: var(--t-lead);
-  }
-}
-
-/* Footer: the last two rows of a board. ------------------------------------------ */
-
-.tiles {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  padding: 0 8px 8px;
-}
-
-.tile {
+.site-foot {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px clamp(16px, 6vw, 70px) 40px;
+  border-top: 2px solid rgba(255, 255, 255, 0.35);
+}
+.foot-lead {
+  font-size: 15px;
+}
+.foot-nav ul {
+  display: flex;
+  flex-wrap: wrap;
   gap: 16px;
-  padding: 20px;
-  background: var(--surface);
+  margin-top: 10px;
+  font-size: 13px;
 }
-
-.tile-wordmark {
-  grid-column: 1 / -1;
-  order: -2;
-  min-height: 160px;
-  align-items: center;
-  justify-content: center;
-  background: var(--ink);
-  color: var(--ground);
+.foot-legal {
+  max-width: 440px;
+  font-size: 12px;
+  text-align: right;
+  opacity: 0.9;
 }
-.tile-wordmark p {
-  font-family: var(--font-display);
-  font-size: min(var(--t-mega), 11.5vw);
-  line-height: 0.9;
-  letter-spacing: -0.04em;
-  white-space: nowrap;
-}
-
-.landing .tile-action {
-  grid-column: 1 / -1;
-  order: -1;
-  min-height: 200px;
-  justify-content: space-between;
-  background: var(--accent);
-  color: var(--ground);
-  font-family: var(--font-display);
-  font-size: var(--t-lead);
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-}
-.landing .tile-action:hover {
-  background: var(--ink);
-}
-.tile-action .arrow {
-  align-self: flex-end;
-}
-
-.tile-statement {
-  grid-column: 1 / -1;
-  order: 4;
-  justify-content: space-between;
-}
-.tile-nav {
-  order: 1;
-}
-.tile-facts {
-  order: 2;
-}
-.tile-key {
-  order: 3;
-  grid-column: 1 / -1;
-  flex-direction: row;
-  align-items: center;
-  gap: 20px;
-}
-.tile-lead {
-  font-size: var(--t-lead);
-  line-height: 1.3;
-  max-width: 24ch;
-}
-.tile-legal {
-  display: grid;
-  gap: 4px;
-  font-size: var(--t-small);
-  color: var(--ink-dim);
-}
-
-.tile-nav ul {
-  display: grid;
-  gap: 6px;
-}
-.tile-nav a:hover {
-  color: var(--accent);
-}
-
-.tile-key-glyph {
-  font-family: var(--font-display);
-  font-size: var(--t-display);
-  line-height: 0.9;
-}
-
-.tile-facts p {
-  font-size: var(--t-body);
-}
-
-@media (min-width: 1024px) {
-  .tiles {
-    grid-template-columns: repeat(12, 1fr);
-    gap: 8px;
-    padding: 0 12px 12px;
-  }
-  .tile {
-    order: 0;
-    min-height: 220px;
-  }
-  .tile-statement {
-    grid-column: 1 / 5;
-  }
-  .tile-nav {
-    grid-column: 5 / 8;
-  }
-  .tile-key {
-    grid-column: 8 / 10;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: space-between;
-  }
-  .tile-facts {
-    grid-column: 10 / 13;
-    justify-content: flex-end;
-  }
-  .tile-facts p {
-    font-size: var(--t-lead);
-    line-height: 1.3;
-  }
-  .tile-wordmark {
-    grid-column: 1 / 9;
-    order: 0;
-    min-height: 320px;
-  }
-  .landing .tile-action {
-    grid-column: 9 / 13;
-    order: 0;
-    min-height: 320px;
+@media (max-width: 639px) {
+  .foot-legal {
+    text-align: left;
   }
 }
 
-/* Motion (Task 27). Transform and opacity only. Every travelling move sits inside
-   prefers-reduced-motion: no-preference, so the reduced page is the finished page at rest.
-   Section entrances hide their parts only under data-motion="on", which useReveal sets once
-   the observer is running; without it, nothing is ever hidden. ------------------------------ */
-
-.landing {
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
-  --t-press: 140ms;
-  --t-hover: 180ms;
-}
-
-/* Feedback under the hand: colour on hover and focus everywhere, travel only where allowed. */
-.landing .button,
-.landing .tile-action {
-  transition:
-    background-color var(--t-hover) ease,
-    transform var(--t-press) var(--ease-out);
-}
-.landing .text-link,
-.landing .hero-signin,
-.landing .how-stop,
-.tile-nav a {
-  transition: color var(--t-hover) ease;
-}
-.landing .arrow {
-  transition: transform var(--t-hover) var(--ease-out);
-}
-.landing .button:focus-visible,
-.landing .tile-action:focus-visible {
-  outline-offset: 4px;
-}
-[data-ui] .lobby-row {
-  transition: background-color 120ms ease;
-}
-.showcase-board [data-ui] li {
-  transition: background-color var(--t-hover) ease;
-}
-@media (hover: hover) and (pointer: fine) {
-  .showcase-board [data-ui] li:hover {
-    background: var(--raised);
-  }
-}
-
+/* Motion: transform and opacity only, all inside no-preference. Entrances hide parts only
+   under data-motion="on", which useReveal sets once its observer is running. */
 @media (prefers-reduced-motion: no-preference) {
-  .landing .button:active {
+  .landing .btn-primary {
+    transition: transform 140ms var(--ease-out);
+  }
+  .landing .btn-primary:active {
     transform: scale(0.97);
   }
-  .landing .tile-action:active {
-    transform: scale(0.99);
-  }
-  .landing .how-stop:active,
-  .showcase-board [data-ui] button:active {
-    transform: translateY(1px);
-  }
-  .how-range::-webkit-slider-thumb {
-    transition: transform var(--t-press) var(--ease-out);
-  }
-  .how-range:active::-webkit-slider-thumb {
-    transform: scale(1.12);
-  }
-  .how-range::-moz-range-thumb {
-    transition: transform var(--t-press) var(--ease-out);
-  }
-  .how-range:active::-moz-range-thumb {
-    transform: scale(1.12);
-  }
-  .landing .text-link:hover .arrow,
-  .landing .text-link:focus-visible .arrow {
-    transform: translateX(4px);
-  }
-  .landing .tile-action:hover .arrow,
-  .landing .tile-action:focus-visible .arrow {
-    transform: translateX(10px);
-  }
-
-  /* Hero: four parts rise in reading order on load. CSS only. */
-  .hero [data-rise] {
-    animation: landing-rise 800ms var(--ease-out) both;
-    animation-delay: calc(var(--i, 0) * 90ms + 120ms);
-  }
-
-  /* How it works: each stop's still crossfades in (200ms), as the blueprint asks. */
   .how-still {
     animation: landing-fade 200ms ease both;
   }
-
-  /* Section entrances: heading, then text, then picture, 75ms apart, once. */
   .landing[data-motion='on'] [data-reveal]:not(.is-in) {
     opacity: 0;
     transform: translateY(24px);
@@ -920,7 +349,6 @@
       transform 900ms var(--ease-out);
     transition-delay: calc(var(--i, 0) * 75ms);
   }
-  /* A picture settles from a slight scale rather than rising. */
   .landing[data-motion='on'] [data-reveal='picture']:not(.is-in) {
     transform: scale(0.97);
   }
@@ -930,29 +358,18 @@
       transform 1200ms var(--ease-soft);
     transition-delay: calc(var(--i, 0) * 75ms);
   }
-  /* Table rows arrive row by row, closer together and with less travel. */
   .landing[data-motion='on'] [data-reveal='row']:not(.is-in) {
     transform: translateY(16px);
   }
   .landing[data-motion='on'] [data-reveal='row'] {
     transition-delay: calc(var(--i, 0) * 60ms);
   }
-  /* On a wide screen the table arrives whole, so the filled "What to do" column is never
-     seen as separate blocks; row by row is for the phone, where each state is its own block. */
   @media (min-width: 1024px) {
     .landing[data-motion='on'] [data-reveal='row']:not(.is-in) {
       opacity: 1;
       transform: none;
     }
   }
-  /* Footer tiles: each upper-row tile, then the lower row, like cards filling a board. */
-  .landing[data-motion='on'] [data-reveal='tile']:not(.is-in) {
-    transform: translateY(32px);
-  }
-
-  /* The signature move ("Slow crossfade", the sheet's "the image changes when its section
-     arrives"): Rook's card holds In match, then the match ends and the Queuing? state
-     crossfades in over 1.6s while the arrow travels down the column. */
   .landing[data-motion='on'] [data-reveal='moment'] .moment-after,
   .landing[data-motion='on'] [data-reveal='moment'] .moment-arrow svg {
     transition:
@@ -967,40 +384,13 @@
     opacity: 0;
     transform: translateX(-12px);
   }
-
-  /* The one moving picture: the hero lobby drifts up slowly as the first screen scrolls away. */
-  @supports (animation-timeline: view()) {
-    .hero-drift {
-      animation: landing-drift linear both;
-      animation-timeline: view();
-      animation-range: exit 0% exit 100%;
-    }
-  }
 }
 
-@keyframes landing-rise {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
 @keyframes landing-fade {
   from {
     opacity: 0;
   }
   to {
     opacity: 1;
-  }
-}
-@keyframes landing-drift {
-  from {
-    transform: none;
-  }
-  to {
-    transform: translateY(-28px);
   }
 }
