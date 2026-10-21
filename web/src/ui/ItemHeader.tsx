@@ -16,7 +16,7 @@ export function ItemHeader({ size = 'md' }: { size?: 'md' | 'lg' }) {
               <LockGlyph className="h-3 w-3" />
             </span>
           </h1>
-          <p className="t-type mt-1 text-[clamp(0.65rem,1.6vw,1.1rem)]">{TYPE_LINE}</p>
+          <p className="t-type mt-1 text-[clamp(0.75rem,1.6vw,1.1rem)]">{TYPE_LINE}</p>
         </div>
       </div>
       <p className="t-flavor mt-4 text-[15px]">“{FLAVOR}”</p>

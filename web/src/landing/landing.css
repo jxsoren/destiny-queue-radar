@@ -37,9 +37,20 @@
   font-weight: 400;
 }
 
+/* Single-column grids on phones: minmax(0, …) lets long cards and tables shrink to the screen.
+   The wider layouts below override this at their breakpoints. */
+.how,
+.moment,
+.about,
+.about-questions {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 /* First screen (spec §5.1). */
 .hero-grid {
   display: grid;
+  /* minmax(0, …) so the widest child (stats row, perk tree) can't push the column past the screen. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 40px;
   padding: 40px clamp(16px, 6vw, 56px) 32px clamp(16px, 8vw, 110px);
 }

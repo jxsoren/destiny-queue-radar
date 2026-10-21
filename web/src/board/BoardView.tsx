@@ -28,9 +28,9 @@ export function BoardView({ players, now, managing = false, onRemove, onRecheck,
     offline: groups.offline.length,
   };
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       <StatsBlock counts={counts} filter={filter} onFilter={setFilter} watching={watching} />
-      <div className="grid gap-5 md:grid-cols-4 md:gap-4">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-4 md:gap-4">
         {COLUMNS.map((def) => (
           <Column
             key={def.id}
