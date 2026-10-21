@@ -112,7 +112,6 @@ export function Board({ onSignedOut, client = defaultApi, stream }: BoardProps) 
     <div ref={rootRef} data-testid="board-root" className={`scanlines min-h-screen bg-ground text-ink ${removal.pending || removeError ? 'pb-40' : 'pb-24'}`}>
       <div className="grid gap-px bg-line">
         <Header
-          watching={state.players.size}
           updatedAgo={latest === null ? null : now - latest}
           apiStatus={state.apiStatus}
           connected={state.connected || !state.loaded}

@@ -5,7 +5,6 @@ import { Header, type HeaderProps } from './Header';
 
 function renderHeader(over: Partial<HeaderProps> = {}) {
   const props: HeaderProps = {
-    watching: 7,
     updatedAgo: 23_000,
     apiStatus: 'ok',
     connected: true,
@@ -21,12 +20,12 @@ function renderHeader(over: Partial<HeaderProps> = {}) {
   return props;
 }
 
-test('wordmark and telemetry readouts', () => {
+test('item header and meta readouts', () => {
   renderHeader();
   expect(screen.getByRole('heading', { level: 1, name: 'Queue Radar' })).toBeInTheDocument();
-  expect(screen.getByText(/WATCHING/)).toHaveTextContent('WATCHING 07 / 50');
+  expect(screen.getByText('Crucible Reconnaissance')).toBeInTheDocument();
   expect(screen.getByText('UPDATED 23S AGO')).toBeInTheDocument();
-  expect(screen.getByText('BUNGIE OK')).not.toHaveClass('text-accent');
+  expect(screen.getByText('BUNGIE OK')).not.toHaveClass('is-alert');
   expect(screen.queryByText('RECONNECTING…')).toBeNull();
 });
 
@@ -35,9 +34,9 @@ test('no successful poll yet shows a dash', () => {
   expect(screen.getByText('UPDATED —')).toBeInTheDocument();
 });
 
-test('Bungie trouble is red', () => {
+test('Bungie trouble is flagged', () => {
   renderHeader({ apiStatus: 'down' });
-  expect(screen.getByText('BUNGIE DOWN')).toHaveClass('text-accent');
+  expect(screen.getByText('BUNGIE DOWN')).toHaveClass('is-alert');
 });
 
 test('refresh shows the remaining cooldown and is disabled', async () => {
@@ -61,4 +60,11 @@ test('refresh, manage and sign out buttons', async () => {
   await user.click(screen.getByRole('button', { name: 'SIGN OUT' }));
   expect(props.onSignOut).toHaveBeenCalledOnce();
   expect(screen.getByText('RECONNECTING…')).toBeInTheDocument();
+});
+
+test('notices sit between the band and the item header', () => {
+  renderHeader({ notices: <p>notice here</p> });
+  const notice = screen.getByText('notice here');
+  const heading = screen.getByRole('heading', { level: 1 });
+  expect(notice.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
