@@ -1,16 +1,43 @@
 :root {
-  --ground: #0e0e0e;
-  --surface: #151515;
-  --raised: #1d1d1d;
-  --line: #2c2c2c;
-  --ink: #eaeaea;
-  --ink-dim: #9b9b9b;
-  --ink-stale: #b3ad8c;
-  --accent: #ff2a2a;
-  --backdrop: rgba(14, 14, 14, 0.86);
-  --scanline: rgba(0, 0, 0, 0.18);
-  --font-display: 'Archivo Black', 'Arial Black', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --font-ui: 'Inter', system-ui, sans-serif;
-  color-scheme: dark;
+  /* Inspect-screen palette (spec §2.1). */
+  --mist-hi: #eef2ef;
+  --mist-mid: #c2cfcd;
+  --mist-lo: #8fa3a4;
+  --mist-edge: #6f8587;
+  --vignette: rgba(30, 44, 48, 0.45);
+  --ink: #ffffff;
+  --ink-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --gold-hi: #e2c440;
+  --gold-lo: #b59a2a;
+  --gold-edge: rgba(236, 214, 110, 0.95);
+  --perk-blue: #5a9fd6;
+  --live: #7cc47c;
+  --live-text: #b4f0b4;
+  --done: #5ea16a;
+  --tip-title: #1c1d1d;
+  --tip-body: rgba(58, 59, 57, 0.92);
+  --tip-text: #d2d4d2;
+  --tip-edge: rgba(214, 216, 212, 0.55);
+  --slate: #1c262a;
+  --prompt: #08090a;
+  --prompt-ink: #e4e4e4;
+  --dismiss: #d9534f;
+  --stale: #f0e2a4;
+  --warn: #e0b84a;
+  --scrim: rgba(20, 28, 31, 0.62);
+  --font-ui: 'Roboto', system-ui, sans-serif;
+
+  /* Legacy aliases, removed in Task 16 once no component uses them. */
+  --ground: #1c262a;
+  --surface: #232c30;
+  --raised: #2d3235;
+  --line: rgba(255, 255, 255, 0.18);
+  --ink-dim: rgba(255, 255, 255, 0.65);
+  --ink-stale: var(--stale);
+  --accent: var(--dismiss);
+  --backdrop: var(--scrim);
+  --font-display: var(--font-ui);
+  --font-mono: var(--font-ui);
+
+  color-scheme: light;
 }

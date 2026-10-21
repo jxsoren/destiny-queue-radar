@@ -7,7 +7,7 @@
 @layer base {
   html,
   body {
-    background: var(--ground);
+    background: var(--mist-lo);
     color: var(--ink);
   }
   body {
@@ -19,39 +19,356 @@
     outline-offset: 2px;
   }
   ::selection {
-    background: var(--accent);
-    color: var(--ground);
+    background: var(--gold-hi);
+    color: var(--prompt);
   }
 }
 
 @layer components {
-  /* Micro-typography: data, labels, telemetry (brutalist §3.2). */
+  /* Type roles (spec §2.2). */
+  .t-name {
+    font-weight: 700;
+    text-transform: uppercase;
+    line-height: 0.95;
+    letter-spacing: -0.005em;
+  }
+  .t-type {
+    font-weight: 300;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .t-flavor {
+    font-weight: 300;
+    font-style: italic;
+  }
+  .t-head {
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .t-status {
+    font-weight: 400;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+  }
+  .t-big {
+    font-weight: 500;
+    line-height: 0.9;
+    font-variant-numeric: tabular-nums;
+  }
+  .t-label {
+    font-weight: 500;
+  }
+  .on-mist {
+    text-shadow: var(--ink-shadow);
+  }
+  .text-shadow-strong {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  }
+  .divider {
+    max-width: 700px;
+    margin: 16px 0;
+    border: 0;
+    border-top: 2px solid rgba(255, 255, 255, 0.55);
+  }
+
+  /* Shared background (spec §2.3). */
+  .mist {
+    position: relative;
+    isolation: isolate;
+    overflow-x: hidden;
+    background:
+      radial-gradient(ellipse at 50% 50%, transparent 55%, var(--vignette) 100%),
+      repeating-radial-gradient(circle at 76% 44%, rgba(255, 255, 255, 0) 0 70px, rgba(255, 255, 255, 0.08) 95px, rgba(255, 255, 255, 0) 120px),
+      radial-gradient(circle at 76% 44%, var(--mist-hi) 0%, var(--mist-mid) 34%, var(--mist-lo) 72%, var(--mist-edge) 100%);
+    background-attachment: fixed;
+  }
+  .rings {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .rings > i {
+    position: absolute;
+    left: 76%;
+    top: 44%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 9999px;
+    transform: translate(-50%, -50%);
+  }
+  .rings > i:nth-child(1) {
+    width: 300px;
+    height: 300px;
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+  .rings > i:nth-child(2) {
+    width: 560px;
+    height: 560px;
+    border: 18px solid rgba(255, 255, 255, 0.07);
+  }
+  .rings > i:nth-child(3) {
+    width: 860px;
+    height: 860px;
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+  .rings > i:nth-child(4) {
+    width: 1200px;
+    height: 1200px;
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+  .band {
+    position: relative;
+    min-height: 56px;
+    background: linear-gradient(180deg, rgba(196, 170, 58, 0.95), rgba(176, 156, 64, 0.55));
+    box-shadow: inset 0 -2px 0 var(--gold-edge);
+  }
+  .watermark {
+    position: fixed;
+    right: 40px;
+    bottom: 54px;
+    z-index: -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.4);
+    pointer-events: none;
+  }
+  .prompt-bar {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 30;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px 24px;
+    min-height: 40px;
+    padding: 6px 24px;
+    background: var(--prompt);
+    color: var(--prompt-ink);
+    font-size: 14px;
+  }
+  .glyph {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    margin-right: 7px;
+    padding: 0 4px;
+    border-radius: 9999px;
+    background: var(--prompt-ink);
+    color: var(--prompt);
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .glyph-red {
+    background: var(--dismiss);
+    color: #fff;
+  }
+
+  /* Tooltip, matched to Thorn's "Mark of the Devourer" (spec §2.4). */
+  .tip {
+    background: var(--tip-body);
+    border-top: 2px solid var(--tip-edge);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28);
+    color: #fff;
+  }
+  .tip-title {
+    padding: 10px 14px 9px;
+    background: var(--tip-title);
+    font-size: 16px;
+    text-transform: uppercase;
+  }
+  .tip-text {
+    padding: 10px 14px 12px;
+    color: var(--tip-text);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .tip-cost {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px 11px;
+    color: var(--live);
+    font-size: 14px;
+  }
+  .tip-cube {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 8px;
+    vertical-align: -2px;
+    background: linear-gradient(135deg, #e4f4fb, #6fb6d8);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  }
+
+  /* Interaction (spec §2.4). */
+  .frame {
+    border: 2px solid transparent;
+  }
+  .frame:hover,
+  .frame:focus-within,
+  .frame[data-active='true'] {
+    border-color: #fff;
+  }
+  .btn-primary {
+    display: inline-block;
+    padding: 12px 20px;
+    background: #fff;
+    color: #1d2629;
+    font-weight: 700;
+  }
+  .btn-outline {
+    padding: 3px 10px;
+    border: 1.5px solid rgba(255, 255, 255, 0.75);
+  }
+  .btn-outline:disabled {
+    opacity: 0.55;
+  }
+  .btn-round {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    border-radius: 9999px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+  }
+  .btn-round:disabled {
+    opacity: 0.45;
+  }
+
+  /* Perk nodes (spec §2.4). */
+  .perk {
+    display: grid;
+    place-items: center;
+    width: 66px;
+    height: 66px;
+    border-radius: 9999px;
+    color: #fff;
+  }
+  .perk svg {
+    width: 30px;
+    height: 30px;
+  }
+  .perk-intrinsic {
+    background: rgba(255, 255, 255, 0.78);
+    color: #6f7d80;
+  }
+  .perk-active {
+    background: var(--perk-blue);
+  }
+  .perk-alt {
+    background: rgba(255, 255, 255, 0.14);
+    border: 5px solid var(--live);
+  }
+  .perk-locked {
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.35);
+  }
+  .perk-upgrade {
+    width: 46px;
+    height: 46px;
+    margin: 10px;
+    background: #7e9497;
+    box-shadow: 0 0 14px 4px rgba(255, 255, 255, 0.55);
+  }
+  .perk-progress {
+    padding: 5px;
+    background: conic-gradient(var(--live) 0 38%, rgba(255, 255, 255, 0.18) 38% 100%);
+  }
+  .perk-progress > span {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    border-radius: 9999px;
+    background: rgba(214, 224, 224, 0.9);
+  }
+  .perk-done {
+    background: var(--done);
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+  }
+  .perk-upcoming {
+    background: #a9b9bb;
+    border: 2px solid #c3d0d1;
+    color: rgba(255, 255, 255, 0.75);
+  }
+  .perk-selected {
+    outline: 3px solid #fff;
+    outline-offset: 3px;
+  }
+
+  /* Emblem-banner card (spec §3.2). */
+  .banner-card {
+    position: relative;
+    aspect-ratio: 474 / 96;
+    background-color: var(--slate);
+    background-size: cover;
+    background-position: left center;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  }
+  .banner-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 30%, rgba(0, 0, 0, 0.35) 100%);
+    pointer-events: none;
+  }
+  .banner-card > * {
+    position: relative;
+  }
+  .banner-card.is-live {
+    box-shadow:
+      inset 4px 0 0 var(--live),
+      0 2px 10px rgba(0, 0, 0, 0.25);
+  }
+  .banner-card.is-muted {
+    filter: grayscale(1) brightness(0.75);
+  }
+
+  /* Legacy utilities, removed in Task 16. */
   .tele {
-    font-family: var(--font-mono);
     font-size: 11px;
     line-height: 1.3;
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
-  /* Macro-typography: wordmark and big numbers (brutalist §3.1). */
   .macro {
-    font-family: var(--font-display);
-    line-height: 0.85;
-    letter-spacing: -0.05em;
+    font-weight: 700;
+    line-height: 0.95;
     text-transform: uppercase;
   }
-  /* Static CRT scanlines over the app shell only (brutalist §7); never on the landing page. */
-  .scanlines::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    pointer-events: none;
-    background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--scanline) 2px, var(--scanline) 4px);
-  }
-  /* A card entering a column (spec §3.5). */
+
+  /* A card entering a column (spec §2.5). */
   .card-enter {
     animation: card-in 180ms ease-out;
+  }
+}
+
+@media (max-width: 639px) {
+  .band {
+    min-height: 34px;
+  }
+  .rings > i {
+    left: 70%;
+    top: 30%;
+    scale: 0.55;
+  }
+  .watermark {
+    display: none;
   }
 }
 
