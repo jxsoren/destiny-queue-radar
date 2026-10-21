@@ -86,6 +86,7 @@ export interface SearchResult {
   membershipId: string;
   bungieName: string;
   emblemPath: string;
+  emblemBackgroundPath: string;
 }
 
 export interface AddWatchRequest {

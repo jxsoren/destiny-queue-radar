@@ -8,6 +8,7 @@ export interface PlayerRow {
   membershipId: string;
   bungieName: string;
   emblemPath: string;
+  emblemBackgroundPath: string;
   isSelf: boolean;
   watching: boolean;
   source: Source;
@@ -67,6 +68,7 @@ export function buildGroups({ matches, expanded, query, search, watched, now }: 
     membershipId: p.membershipId,
     bungieName: p.bungieName,
     emblemPath: p.emblemPath,
+    emblemBackgroundPath: '',
     isSelf: p.isSelf,
     watching: p.watched || watched.has(p.membershipId),
     source: 'match',
@@ -93,6 +95,7 @@ export function buildGroups({ matches, expanded, query, search, watched, now }: 
           membershipId: search.membershipId,
           bungieName: search.bungieName,
           emblemPath: search.emblemPath,
+          emblemBackgroundPath: search.emblemBackgroundPath,
           isSelf: false,
           watching: watched.has(search.membershipId),
           source: 'search',

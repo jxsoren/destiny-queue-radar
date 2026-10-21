@@ -24,7 +24,7 @@ const olderMatch = makeMatch({
 function setup(over: Partial<Record<'recentMatches' | 'search' | 'addWatch', ReturnType<typeof vi.fn>>> = {}, fakeTimers = false) {
   const client = {
     recentMatches: vi.fn().mockResolvedValue([lastMatch, olderMatch]),
-    search: vi.fn().mockResolvedValue({ membershipType: 3, membershipId: '9', bungieName: 'Ghost#0880', emblemPath: '/g.jpg' }),
+    search: vi.fn().mockResolvedValue({ membershipType: 3, membershipId: '9', bungieName: 'Ghost#0880', emblemPath: '/g.jpg', emblemBackgroundPath: '/g_bg.jpg' }),
     addWatch: vi.fn().mockResolvedValue(undefined),
     ...over,
   };

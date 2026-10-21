@@ -78,10 +78,10 @@ describe('buildGroups', () => {
       ...base,
       matches: [],
       query: 'Ghost#0880',
-      search: { membershipType: 3, membershipId: '9', bungieName: 'Ghost#0880', emblemPath: '/g.jpg' },
+      search: { membershipType: 3, membershipId: '9', bungieName: 'Ghost#0880', emblemPath: '/g.jpg', emblemBackgroundPath: '/g_bg.jpg' },
     });
     expect(g.search).toEqual([
-      expect.objectContaining({ kind: 'player', membershipId: '9', source: 'search', emblemPath: '/g.jpg', watching: false }),
+      expect.objectContaining({ kind: 'player', membershipId: '9', source: 'search', emblemPath: '/g.jpg', emblemBackgroundPath: '/g_bg.jpg', watching: false }),
     ]);
     expect(flatten(g)).toHaveLength(1);
   });
@@ -90,4 +90,9 @@ describe('buildGroups', () => {
     const g = buildGroups({ ...base, matches: [last, older(0)] });
     expect(flatten(g).map((r) => r.key)).toEqual(['9001:me', '9001:v', '9001:w', '9010']);
   });
+});
+
+test('lobby players carry no banner (post-game reports only give the icon)', () => {
+  const groups = buildGroups({ matches: [makeMatch()], expanded: new Set(), query: '', search: null, watched: new Set(), now: NOW });
+  expect(groups.last[0]).toMatchObject({ kind: 'player', emblemBackgroundPath: '' });
 });
