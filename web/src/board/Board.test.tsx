@@ -46,7 +46,16 @@ describe('Board', () => {
   test('an empty board invites "/"', () => {
     setup();
     snapshot([]);
-    expect(screen.getByText('Press / to track the player who just beat you.')).toBeInTheDocument();
+    expect(screen.getByText('Press / to track a player.')).toBeInTheDocument();
+  });
+
+  test('the prompt bar names the / shortcut and offers + Track on phones', async () => {
+    const { user } = setup();
+    snapshot();
+    const bar = screen.getByTestId('prompt-bar');
+    expect(within(bar).getByText('Track a player')).toBeInTheDocument();
+    await user.click(within(bar).getByRole('button', { name: '+ Track' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
   test('"/" and the slot open the palette; adding refetches the watchlist', async () => {

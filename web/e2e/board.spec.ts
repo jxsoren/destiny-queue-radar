@@ -14,7 +14,7 @@ test('track a player from your last match and follow them', async ({ page, reque
   // Sign in (stub) → an empty board.
   await page.goto('/auth/e2e-login');
   await expect(page.getByRole('heading', { level: 1, name: 'Queue Radar' })).toBeVisible();
-  await expect(page.getByText('Press / to track the player who just beat you.')).toBeVisible();
+  await expect(page.getByText('Press / to track a player.')).toBeVisible();
 
   // "/" → palette → pick a player from the last lobby.
   await page.keyboard.press('/');

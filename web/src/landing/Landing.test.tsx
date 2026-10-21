@@ -96,7 +96,7 @@ test('how it works: the slider steps through the four stops', () => {
   expect(slider).toHaveValue('0');
   expect(slider).toHaveAttribute('aria-valuetext', 'Match ends');
   expect(clause()).toBe('First, the match ends');
-  expect(fragment()).toHaveTextContent('Press / to track the player who just beat you.');
+  expect(fragment()).toHaveTextContent('Press / to track a player.');
 
   fireEvent.change(slider, { target: { value: '1' } });
   expect(clause()).toBe('Then press /');

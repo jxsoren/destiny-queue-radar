@@ -16,6 +16,8 @@ import { Header } from './Header';
 import { displayName } from './names';
 import { latestSuccess } from './stale';
 import { EmptyBoard, TrackSlot } from './TrackSlot';
+import { Backdrop } from '../ui/Backdrop';
+import { PromptBar, PromptGlyph } from '../ui/PromptBar';
 
 export interface BoardProps {
   me: Me;
@@ -91,7 +93,7 @@ export function Board({ onSignedOut, client = defaultApi, stream }: BoardProps) 
 
   let main: ReactNode;
   if (!state.loaded) {
-    main = <p className="tele bg-ground px-4 py-6 text-dim">CONNECTING…</p>;
+    main = <p className="t-status on-mist py-6">CONNECTING…</p>;
   } else if (players.length === 0 && !managing) {
     main = <EmptyBoard onOpen={openPalette} />;
   } else {
@@ -109,8 +111,8 @@ export function Board({ onSignedOut, client = defaultApi, stream }: BoardProps) 
   }
 
   return (
-    <div ref={rootRef} data-testid="board-root" className={`scanlines min-h-screen bg-ground text-ink ${removal.pending || removeError ? 'pb-40' : 'pb-24'}`}>
-      <div className="grid gap-px bg-line">
+    <Backdrop>
+      <div ref={rootRef} data-testid="board-root" className={removal.pending || removeError ? 'pb-40' : 'pb-24'}>
         <Header
           updatedAgo={latest === null ? null : now - latest}
           apiStatus={state.apiStatus}
@@ -121,14 +123,26 @@ export function Board({ onSignedOut, client = defaultApi, stream }: BoardProps) 
           managing={managing}
           onToggleManage={() => setManaging((m) => !m)}
           onSignOut={() => void signOut()}
+          notices={
+            <>
+              <ApiBanner status={state.apiStatus} />
+              <StreamNotice show={tooManyTabs} />
+            </>
+          }
         />
-        <ApiBanner status={state.apiStatus} />
-        <StreamNotice show={tooManyTabs} />
-        <main>{main}</main>
+        <main className="px-4 pt-2 sm:px-10">{main}</main>
       </div>
       <Announcer players={players} />
-      <UndoBar pending={removal.pending} error={removeError} onUndo={removal.undo} onDismissError={() => setRemoveError(null)} />
+      <PromptBar>
+        <UndoBar pending={removal.pending} error={removeError} onUndo={removal.undo} onDismissError={() => setRemoveError(null)} />
+        <span className="hidden items-center sm:inline-flex">
+          <PromptGlyph>/</PromptGlyph>Track a player
+        </span>
+        <button type="button" onClick={openPalette} className="btn-primary px-3.5 py-2 text-[13px] sm:hidden">
+          + Track
+        </button>
+      </PromptBar>
       <Palette open={paletteOpen} onClose={closePalette} client={client} watchedIds={watchedIds} onAdded={() => void refetch()} />
-    </div>
+    </Backdrop>
   );
 }
