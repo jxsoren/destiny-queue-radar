@@ -20,13 +20,13 @@ describe('PlayerCard', () => {
     const card = renderCard(makePlayer({ emblemBackgroundPath: '/common/destiny2_content/icons/vex_bg.jpg' }));
     expect(screen.getByText('Vex')).toBeInTheDocument();
     expect(screen.getByText('#1111')).toHaveClass('opacity-70');
-    expect(card.style.backgroundImage).toContain('https://www.bungie.net/common/destiny2_content/icons/vex_bg.jpg');
+    expect(screen.getByTestId('banner-art').style.backgroundImage).toContain('https://www.bungie.net/common/destiny2_content/icons/vex_bg.jpg');
     expect(card.querySelector('img')).toBeNull();
   });
 
   test('no banner, or a banner from anywhere else, falls back to the plain slate card', () => {
-    expect(renderCard(makePlayer({ membershipId: 'a' })).style.backgroundImage).toBe('');
-    expect(renderCard(makePlayer({ membershipId: 'b', emblemBackgroundPath: 'https://evil.example/x.jpg' })).style.backgroundImage).toBe('');
+    expect(renderCard(makePlayer({ membershipId: 'a' })).querySelector<HTMLElement>('.banner-art')!.style.backgroundImage).toBe('');
+    expect(renderCard(makePlayer({ membershipId: 'b', emblemBackgroundPath: 'https://evil.example/x.jpg' })).querySelector<HTMLElement>('.banner-art')!.style.backgroundImage).toBe('');
   });
 
   test('in match: green edge, playlist and map, live timer', () => {

@@ -27,7 +27,7 @@ test('the stats block: in-match bar is green while anyone is in a match, and the
   expect(screen.getByTestId('bar-match')).toHaveClass('bg-live');
   expect(screen.getByTestId('bar-queue')).toHaveClass('bg-white');
   expect(screen.getByTestId('count-offline')).toHaveTextContent('2');
-  expect(screen.getByTestId('watchlist')).toHaveTextContent('5 / 50');
+  expect(screen.getByTestId('watchlist')).toHaveTextContent('Watchlist 5 / 50');
 });
 
 test('on phones a stat bar filters the columns; a second tap or All resets', async () => {
@@ -37,15 +37,15 @@ test('on phones a stat bar filters the columns; a second tap or All resets', asy
   expect(region(/^IN MATCH/)).not.toHaveClass('hidden');
   expect(region(/^OFFLINE/)).not.toHaveClass('hidden');
 
-  await user.click(screen.getByRole('button', { name: /^Offline/ }));
-  expect(screen.getByRole('button', { name: /^Offline/ })).toHaveAttribute('aria-pressed', 'true');
+  await user.click(screen.getByRole('button', { name: 'Offline 2' }));
+  expect(screen.getByRole('button', { name: 'Offline 2' })).toHaveAttribute('aria-pressed', 'true');
   expect(region(/^OFFLINE/)).not.toHaveClass('hidden');
   expect(region(/^IN MATCH/)).toHaveClass('hidden');
 
-  await user.click(screen.getByRole('button', { name: /^Offline/ }));
+  await user.click(screen.getByRole('button', { name: 'Offline 2' }));
   expect(region(/^IN MATCH/)).not.toHaveClass('hidden');
 
-  await user.click(screen.getByRole('button', { name: /^In match/ }));
+  await user.click(screen.getByRole('button', { name: 'In match 1' }));
   expect(region(/^OFFLINE/)).toHaveClass('hidden');
   await user.click(screen.getByRole('button', { name: 'All' }));
   expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
@@ -55,4 +55,14 @@ test('on phones a stat bar filters the columns; a second tap or All resets', asy
 test('renders the slot it is given', () => {
   render(<BoardView players={[]} now={NOW} slot={<p>slot here</p>} />);
   expect(screen.getByText('slot here')).toBeInTheDocument();
+});
+
+test('an empty column says so', () => {
+  render(<BoardView players={players.filter((p) => p.membershipId !== 'm1')} now={NOW} />);
+  expect(within(screen.getByRole('region', { name: /^IN MATCH/ })).getByText('No players here.')).toBeInTheDocument();
+});
+
+test('the watchlist line shows the server size when given', () => {
+  render(<BoardView players={players} now={NOW} watching={12} />);
+  expect(screen.getByTestId('watchlist')).toHaveTextContent('Watchlist 12 / 50');
 });

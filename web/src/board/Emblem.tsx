@@ -4,7 +4,7 @@ const BUNGIE = 'https://www.bungie.net';
 
 /** Bungie paths are relative to bungie.net; data:image/ URIs (the demo's drawn emblems) pass; nothing else is loaded. */
 export function emblemUrl(path: string): string | null {
-  if (path.startsWith('/') && !path.startsWith('//')) return BUNGIE + path;
+  if (path.startsWith('/') && !path.startsWith('//')) return /["'\\()\n\r]/.test(path) ? null : BUNGIE + path;
   if (path.startsWith('data:image/')) return path;
   return null;
 }

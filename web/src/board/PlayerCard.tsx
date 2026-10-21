@@ -32,9 +32,9 @@ export function PlayerCard({ player, now, managing, onRemove, onRecheck, recheck
   return (
     <li
       data-testid={`card-${player.membershipId}`}
-      style={style}
       className={`card-enter banner-card frame flex items-center gap-2 pl-[21%] pr-2 ${live ? 'is-live' : ''} ${muted ? 'is-muted' : ''}`}
     >
+      <span aria-hidden="true" data-testid="banner-art" className="banner-art" style={style} />
       <div className="min-w-0 flex-1">
         <p className="text-shadow-strong truncate text-[15px] font-bold leading-tight">
           {name}

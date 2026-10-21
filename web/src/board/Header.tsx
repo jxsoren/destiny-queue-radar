@@ -27,7 +27,7 @@ export function Header(p: HeaderProps) {
     <header>
       <div className="band on-mist flex flex-wrap items-center justify-end gap-x-4 gap-y-2 px-4 py-2 text-[13px] sm:px-8">
         <p>{p.updatedAgo === null ? 'UPDATED —' : `UPDATED ${formatAgo(p.updatedAgo)} AGO`}</p>
-        <p className={ok ? '' : 'is-alert bg-prompt px-2 py-0.5'}>
+        <p className={ok ? '' : 'is-alert'}>
           <span aria-hidden="true" className={`mr-1.5 inline-block h-[7px] w-[7px] rounded-full ${ok ? 'bg-live' : 'bg-dismiss'}`} />
           BUNGIE {p.apiStatus.toUpperCase()}
         </p>

@@ -100,6 +100,7 @@ export function Board({ onSignedOut, client = defaultApi, stream }: BoardProps) 
     main = (
       <BoardView
         players={players}
+        watching={state.players.size}
         now={now}
         managing={managing}
         onRemove={removal.start}

@@ -17,6 +17,10 @@ export interface StatsBlockProps {
   onFilter?: (id: ColumnId | null) => void;
   /** The "Material details" slot on the right. */
   aside?: ReactNode;
+  /** The server's watchlist size; defaults to the visible-card total. */
+  watching?: number;
+  /** The section's accessible name. */
+  label?: string;
 }
 
 function Bar({ share, live, testId }: { share: number; live: boolean; testId?: string }) {
@@ -28,12 +32,12 @@ function Bar({ share, live, testId }: { share: number; live: boolean; testId?: s
 }
 
 /** The inspect screen's stats (spec §3.1 item 5): big number, four bars, then the watchlist row. */
-export function StatsBlock({ counts, filter = null, onFilter, aside }: StatsBlockProps) {
+export function StatsBlock({ counts, filter = null, onFilter, aside, watching, label = 'Counts' }: StatsBlockProps) {
   const total = COLUMNS.reduce((n, c) => n + counts[c.id], 0);
   const share = (id: ColumnId) => (total === 0 ? 0 : Math.round((counts[id] / total) * 100));
   const live = (id: ColumnId) => id === 'match' && counts.match > 0;
   return (
-    <section aria-label="Counts" className="on-mist">
+    <section aria-label={label} className="on-mist">
       <hr className="divider" />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8">
         <p className="t-big text-[clamp(2.6rem,6vw,3.75rem)]">
@@ -47,16 +51,12 @@ export function StatsBlock({ counts, filter = null, onFilter, aside }: StatsBloc
           {COLUMNS.map((c) => (
             <Fragment key={c.id}>
               <dt className="text-right">{STAT_LABELS[c.id]}</dt>
-              <dd>
+              <dd aria-hidden="true">
                 <Bar share={share(c.id)} live={live(c.id)} testId={`bar-${c.id}`} />
               </dd>
               <dd data-testid={`count-${c.id}`}>{counts[c.id]}</dd>
             </Fragment>
           ))}
-          <dt className="text-right">Watchlist</dt>
-          <dd data-testid="watchlist" className="col-span-2">
-            {total} / {WATCH_LIMIT}
-          </dd>
         </dl>
         {onFilter && (
           <div role="group" aria-label="Show one column" className="grid gap-1 md:hidden">
@@ -67,6 +67,7 @@ export function StatsBlock({ counts, filter = null, onFilter, aside }: StatsBloc
                   key={c.id}
                   type="button"
                   aria-pressed={on}
+                  aria-label={`${STAT_LABELS[c.id]} ${counts[c.id]}`}
                   onClick={() => onFilter(on ? null : c.id)}
                   className={`t-label grid grid-cols-[5.5rem_1fr_1.5rem] items-center gap-2 px-1.5 py-1 text-left text-[13px] ${on ? 'bg-white/15 outline outline-2 outline-white' : ''}`}
                 >
@@ -86,6 +87,9 @@ export function StatsBlock({ counts, filter = null, onFilter, aside }: StatsBloc
             </button>
           </div>
         )}
+        <p data-testid="watchlist" className="t-label text-[15px]">
+          Watchlist {watching ?? total} / {WATCH_LIMIT}
+        </p>
         {aside && <div className="sm:ml-auto">{aside}</div>}
       </div>
       <hr className="divider" />

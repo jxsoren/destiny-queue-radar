@@ -21,6 +21,7 @@ export function Column({ def, players, now, managing, hiddenOnPhone, onRemove, o
       <h2 id={headingId} className="t-head on-mist mb-2 flex justify-between">
         <span>{def.title}</span> <data value={players.length}>{pad2(players.length)}</data>
       </h2>
+      {players.length === 0 && <p className="t-status on-mist opacity-80">No players here.</p>}
       <ul className="grid gap-2">
         {players.map((p) => (
           <PlayerCard

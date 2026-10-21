@@ -13,10 +13,12 @@ export interface BoardViewProps {
   recheckDisabled?: boolean;
   /** The "+ Track a player" slot, placed under the last column. */
   slot?: ReactNode;
+  /** The server's watchlist size, when it differs from the cards shown. */
+  watching?: number;
 }
 
 /** Stats and the four columns, free of data fetching so the landing demo can reuse it. */
-export function BoardView({ players, now, managing = false, onRemove, onRecheck, recheckDisabled, slot }: BoardViewProps) {
+export function BoardView({ players, now, managing = false, onRemove, onRecheck, recheckDisabled, slot, watching }: BoardViewProps) {
   const [filter, setFilter] = useState<ColumnId | null>(null);
   const groups = useMemo(() => groupPlayers(players), [players]);
   const counts: Record<ColumnId, number> = {
@@ -27,7 +29,7 @@ export function BoardView({ players, now, managing = false, onRemove, onRecheck,
   };
   return (
     <div className="grid gap-4">
-      <StatsBlock counts={counts} filter={filter} onFilter={setFilter} />
+      <StatsBlock counts={counts} filter={filter} onFilter={setFilter} watching={watching} />
       <div className="grid gap-5 md:grid-cols-4 md:gap-4">
         {COLUMNS.map((def) => (
           <Column
