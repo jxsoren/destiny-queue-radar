@@ -108,7 +108,7 @@ describe('Palette', () => {
     expect(client.search).toHaveBeenCalledTimes(1);
     expect(client.search).toHaveBeenCalledWith('Ghost#0880');
     expect(within(screen.getByRole('group', { name: 'BUNGIE SEARCH' })).getByRole('option')).toBe(ghost);
-    expect(ghost.querySelector('img')).toHaveAttribute('src', 'https://www.bungie.net/g.jpg');
+    expect(ghost.style.backgroundImage).toContain('https://www.bungie.net/g_bg.jpg');
     await user.keyboard('{Enter}');
     expect(client.addWatch).toHaveBeenCalledWith({ membershipType: 3, membershipId: '9', source: 'search' });
   });
@@ -161,10 +161,28 @@ describe('Palette accessibility and behaviour', () => {
     setup();
     const vex = await screen.findByRole('option', { name: /Vex#1111/ });
     const me = screen.getByRole('option', { name: /Tester#0001/ });
-    expect(me).toHaveClass('outline', 'outline-2', '-outline-offset-2', 'outline-ink', 'text-ink');
-    expect(vex).not.toHaveClass('outline-ink');
+    expect(me).toHaveAttribute('data-active', 'true');
+    expect(me).toHaveClass('frame');
+    expect(vex).toHaveAttribute('data-active', 'false');
     expect(input().className).not.toContain('focus:outline-none');
-    expect(input()).toHaveClass('focus-visible:border-b-2', 'focus-visible:border-ink');
+    expect(input()).toHaveClass('focus-visible:border-white');
+  });
+
+  test('a search result is drawn on its emblem banner; lobby players keep their icon', async () => {
+    const { user } = setup();
+    const vex = await screen.findByRole('option', { name: /Vex#1111/ });
+    expect(vex.querySelector('img')).not.toBeNull();
+    await user.type(input(), 'Ghost#0880');
+    const ghost = await screen.findByRole('option', { name: /Ghost#0880/ });
+    expect(ghost.style.backgroundImage).toContain('https://www.bungie.net/g_bg.jpg');
+    expect(ghost.querySelector('img')).toBeNull();
+  });
+
+  test('the title is visible in the gold header', async () => {
+    setup();
+    await screen.findByRole('option', { name: /Vex#1111/ });
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Track a player');
+    expect(screen.getByRole('heading', { level: 2, name: 'Track a player' })).not.toHaveClass('sr-only');
   });
 
   test('the active option is scrolled into view', async () => {

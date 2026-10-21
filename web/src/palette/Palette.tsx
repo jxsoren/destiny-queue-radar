@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import type { Api } from '../api/client';
 import type { Match, SearchResult } from '../api/types';
-import { Emblem } from '../board/Emblem';
+import { Emblem, emblemUrl } from '../board/Emblem';
 import { displayName, splitName } from '../board/names';
 import { useNow } from '../lib/useNow';
 import { Dialog } from './Dialog';
 import { needsReauth, paletteError } from './errors';
 import { buildGroups, flatten, isBungieName, type Row } from './rows';
+import { PromptGlyph } from '../ui/PromptBar';
+import { RadarMark } from '../ui/RadarMark';
 
 export const SEARCH_DEBOUNCE_MS = 300;
 
@@ -157,9 +159,12 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
 
   return (
     <Dialog onClose={onClose} labelledBy="palette-title" initialFocus={inputRef}>
-      <h2 id="palette-title" className="sr-only">
-        Track a player
-      </h2>
+      <div className="band on-mist flex min-h-0 items-center gap-3 px-4 py-3">
+        <RadarMark size={38} />
+        <h2 id="palette-title" className="t-name text-[22px]">
+          Track a player
+        </h2>
+      </div>
       <input
         ref={inputRef}
         type="text"
@@ -169,7 +174,7 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
         aria-autocomplete="list"
         aria-activedescendant={index >= 0 ? rowId(rows[index].key) : undefined}
         aria-label="Filter your lobbies, or enter a Bungie Name"
-        placeholder="FILTER LOBBIES OR ENTER NAME#1234"
+        placeholder="Lobby filter or Name#1234"
         autoComplete="off"
         spellCheck={false}
         value={query}
@@ -179,10 +184,10 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
           setActive(0);
         }}
         onKeyDown={onKeyDown}
-        className="tele w-full bg-ground px-4 py-4 text-[13px] text-ink placeholder:text-dim border-b-2 border-transparent focus-visible:border-b-2 focus-visible:border-ink focus-visible:outline-none"
+        className="mx-4 mb-1.5 mt-3.5 block w-[calc(100%-2rem)] border-2 border-white/70 bg-white/5 px-3 py-2.5 text-[15px] text-white placeholder:italic placeholder:text-white/55 focus-visible:border-white focus-visible:outline-none"
       />
       {error && (
-        <p role="alert" className="tele bg-raised px-4 py-2 text-accent">
+        <p role="alert" className="t-status mx-4 mt-2 bg-[#5a1f1c]/90 px-3 py-2">
           {error}
         </p>
       )}
@@ -200,16 +205,27 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
             <Note accent>{paletteError(recent.error, 'matches')}</Note>
           ))}
         {recent.kind === 'ready' && matches.length === 0 && <Note>NO RECENT PVP MATCHES</Note>}
-        {searching && <Note>SEARCHING BUNGIE…</Note>}
+        {searching && <Note busy>SEARCHING BUNGIE…</Note>}
       </div>
       <p role="status" aria-live="polite" className="sr-only">
         {announcement}
       </p>
-      <div id="palette-list" role="listbox" aria-label="Players" className="max-h-[60vh] overflow-y-auto bg-ground">
+      <div id="palette-list" role="listbox" aria-label="Players" className="max-h-[60vh] overflow-y-auto">
         <Group title="YOUR LAST MATCH">{renderRows(groups.last)}</Group>
         {groups.older.length > 0 && <Group title="OLDER LOBBIES">{renderRows(groups.older)}</Group>}
         {groups.search.length > 0 && <Group title="BUNGIE SEARCH">{renderRows(groups.search)}</Group>}
       </div>
+      <p aria-hidden="true" className="mt-3 flex justify-end gap-5 bg-prompt px-4 py-2 text-[13px] text-prompt-ink">
+        <span>
+          <PromptGlyph>↑↓</PromptGlyph>Move
+        </span>
+        <span>
+          <PromptGlyph>↵</PromptGlyph>Track
+        </span>
+        <span>
+          <PromptGlyph red>esc</PromptGlyph>Dismiss
+        </span>
+      </p>
     </Dialog>
   );
 }
@@ -218,7 +234,11 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
   const id = `palette-group-${title.toLowerCase().replace(/\W+/g, '-')}`;
   return (
     <div role="group" aria-labelledby={id} className="pb-2">
-      <p id={id} role="presentation" className="tele px-4 pb-1 pt-3 text-dim">
+      <p
+        id={id}
+        role="presentation"
+        className="t-head flex items-center gap-2.5 px-4 pb-1.5 pt-3.5 text-white/75 after:h-px after:flex-1 after:bg-white/20 after:content-['']"
+      >
         {title}
       </p>
       {children}
@@ -226,8 +246,15 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Note({ children, accent = false }: { children: ReactNode; accent?: boolean }) {
-  return <p className={`tele px-4 py-2 ${accent ? 'text-accent' : 'text-dim'}`}>{children}</p>;
+function Note({ children, accent = false, busy = false }: { children: ReactNode; accent?: boolean; busy?: boolean }) {
+  return (
+    <p className={`t-status flex items-center gap-2 px-4 py-2 ${accent ? 'text-[#ff8a85]' : 'text-white/75'}`}>
+      {busy && (
+        <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/25 border-t-white motion-reduce:animate-none" />
+      )}
+      {children}
+    </p>
+  );
 }
 
 interface RowViewProps {
@@ -238,21 +265,39 @@ interface RowViewProps {
   onHover: () => void;
 }
 
+/** A search banner fades into the panel by 45% of the row, so the name always sits on solid charcoal. */
+function bannerStyle(path: string): CSSProperties | undefined {
+  const url = emblemUrl(path);
+  if (!url) return undefined;
+  return {
+    backgroundImage: `linear-gradient(90deg, rgba(58,59,57,0) 25%, rgba(58,59,57,1) 45%), url("${url}")`,
+    backgroundSize: '100% 100%, auto 100%',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'left center',
+  };
+}
+
 function RowView({ row, active, adding, onAct, onHover }: RowViewProps) {
-  const base = `flex cursor-pointer items-center gap-3 px-4 py-2 ${active ? 'bg-raised text-ink outline outline-2 -outline-offset-2 outline-ink' : ''}`;
   const common = {
     id: rowId(row.key),
     role: 'option' as const,
     'aria-selected': active,
+    'data-active': active,
     onMouseDown: (e: MouseEvent) => e.preventDefault(), // keep focus in the input
     onMouseEnter: onHover,
     onClick: onAct,
   };
   if (row.kind === 'lobby') {
     return (
-      <div {...common} aria-label={`${row.summary}, ${row.expanded ? 'expanded' : 'collapsed'}`} className={`tele justify-between ${base} ${active ? 'text-ink' : 'text-dim'}`}>
+      <div
+        {...common}
+        aria-label={`${row.summary}, ${row.expanded ? 'expanded' : 'collapsed'}`}
+        className="frame t-status mx-3 mb-1 flex cursor-pointer items-center justify-between px-2 py-2 text-white/85"
+      >
         <span>{row.summary}</span>
-        <span aria-hidden="true">{row.expanded ? '−' : '+'}</span>
+        <span aria-hidden="true" className="btn-round">
+          {row.expanded ? '−' : '+'}
+        </span>
       </div>
     );
   }
@@ -260,16 +305,28 @@ function RowView({ row, active, adding, onAct, onHover }: RowViewProps) {
   const { name, code } = splitName(label);
   // An explicit name keeps "Name#1234" in one piece (the nested code span would read "Name #1234").
   const accessibleName = row.isSelf ? `${label} · YOU` : row.watching ? `${label} · WATCHING` : label;
+  const style = bannerStyle(row.emblemBackgroundPath);
   return (
-    <div {...common} aria-label={accessibleName} aria-disabled={row.isSelf || row.watching} className={base}>
-      <Emblem key={row.emblemPath} path={row.emblemPath} size={28} />
-      <span className={`min-w-0 flex-1 truncate ${row.isSelf ? 'text-dim' : 'text-ink'}`}>
+    <div
+      {...common}
+      aria-label={accessibleName}
+      aria-disabled={row.isSelf || row.watching}
+      style={style}
+      className={`frame mx-3 mb-1.5 flex h-[52px] cursor-pointer items-center gap-3 bg-black/20 pr-3 ${style ? 'pl-16' : 'pl-2'} ${row.isSelf ? 'opacity-60' : ''}`}
+    >
+      {!style && <Emblem key={row.emblemPath} path={row.emblemPath} size={36} />}
+      <span className="text-shadow-strong min-w-0 flex-1 truncate text-[15px] font-bold">
         {name}
-        <span className="text-dim">{code}</span>
+        <span className="font-normal opacity-70">{code}</span>
       </span>
-      {row.isSelf && <span className="tele text-dim">YOU</span>}
-      {row.watching && !row.isSelf && <span className="tele text-accent">WATCHING</span>}
-      {adding && <span className="tele text-dim">ADDING…</span>}
+      {row.isSelf && <span className="t-status opacity-70">YOU</span>}
+      {row.watching && !row.isSelf && <span className="t-status text-live">WATCHING</span>}
+      {active && !row.isSelf && !row.watching && !adding && (
+        <span aria-hidden="true" className="t-status">
+          ↵ TRACK
+        </span>
+      )}
+      {adding && <span className="t-status opacity-70">ADDING…</span>}
     </div>
   );
 }

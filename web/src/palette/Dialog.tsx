@@ -45,7 +45,7 @@ export function Dialog({ onClose, labelledBy, initialFocus, children }: DialogPr
   return (
     <div
       data-testid="dialog-backdrop"
-      className="fixed inset-0 z-40 flex items-start justify-center bg-backdrop px-4 pt-[12vh]"
+      className="fixed inset-0 z-40 flex items-start justify-center bg-scrim px-4 pt-[12vh]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -57,7 +57,7 @@ export function Dialog({ onClose, labelledBy, initialFocus, children }: DialogPr
         aria-labelledby={labelledBy}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className="w-full max-w-2xl bg-ground outline outline-1 outline-line"
+        className="tip w-full max-w-[500px] border-t-0 shadow-[0_16px_50px_rgba(0,0,0,0.5)] outline-none"
       >
         {children}
       </div>
