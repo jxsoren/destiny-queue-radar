@@ -253,7 +253,8 @@ func TestSearch_IncludesEmblem(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("search = %d %s", rec.Code, rec.Body)
 	}
-	if got := decode[searchResultJSON](t, rec); got.EmblemPath != "/common/emblem.jpg" || got.MembershipID != "777" {
+	got := decode[searchResultJSON](t, rec)
+	if got.EmblemPath != "/common/emblem.jpg" || got.EmblemBackgroundPath != "/common/emblem-bg.jpg" || got.MembershipID != "777" {
 		t.Errorf("result = %+v", got)
 	}
 }
@@ -274,6 +275,9 @@ func TestSearch_ProfileErrorStillAnswers(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"emblemPath":""`) {
 		t.Errorf("emblemPath must always be present: %s", rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), `"emblemBackgroundPath":""`) {
+		t.Errorf("emblemBackgroundPath must always be present: %s", rec.Body)
 	}
 }
 

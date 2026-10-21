@@ -142,10 +142,11 @@ func (s *Server) handleRemoveWatch(w http.ResponseWriter, r *http.Request, u sto
 var searchEmblemTimeout = 3 * time.Second
 
 type searchResultJSON struct {
-	MembershipType int64  `json:"membershipType"`
-	MembershipID   string `json:"membershipId"`
-	BungieName     string `json:"bungieName"`
-	EmblemPath     string `json:"emblemPath"`
+	MembershipType       int64  `json:"membershipType"`
+	MembershipID         string `json:"membershipId"`
+	BungieName           string `json:"bungieName"`
+	EmblemPath           string `json:"emblemPath"`
+	EmblemBackgroundPath string `json:"emblemBackgroundPath"`
 }
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, u store.User) {
@@ -172,16 +173,16 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, u store.Us
 		display = bungie.FormatBungieName(card.BungieGlobalDisplayName, card.BungieGlobalDisplayNameCode)
 	}
 	// The emblem is a nicety: a failed profile lookup still answers the search.
-	var emblem string
+	var emblem, emblemBackground string
 	pctx, cancel := context.WithTimeout(r.Context(), searchEmblemTimeout)
 	defer cancel()
 	if prof, err := s.d.Bungie.GetProfile(pctx, card.MembershipType, card.MembershipID); err == nil {
-		emblem, _ = prof.ActiveEmblem()
+		emblem, emblemBackground = prof.ActiveEmblem()
 	} else if !bungie.IsNotFound(err) && !errors.Is(err, context.DeadlineExceeded) {
 		s.d.Log.WarnContext(r.Context(), "search emblem lookup failed", "err", err)
 	}
 	writeJSON(w, http.StatusOK, searchResultJSON{MembershipType: card.MembershipType, MembershipID: card.MembershipID,
-		BungieName: display, EmblemPath: emblem})
+		BungieName: display, EmblemPath: emblem, EmblemBackgroundPath: emblemBackground})
 }
 
 // allowLookup applies the per-user lookup rate limit, answering 429 when exceeded.
