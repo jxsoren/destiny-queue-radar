@@ -19,38 +19,45 @@ const STATES: readonly [state: string, sees: string, sure: string, todo: string]
 /** Claim 4, "Queue while they're busy": Rook's card as his match ends, then what every state means. */
 export function QueueWhileBusy() {
   return (
-    <section id="columns" aria-labelledby="columns-title" className="features">
+    <section id="columns" aria-labelledby="columns-title" className="landing-section on-mist">
       <h2 id="columns-title" data-reveal style={order(0)} className="section-title">
-        Queue while they’re busy
+        The queue window
       </h2>
-      <div className="features-split">
-        <p data-reveal style={order(1)} className="statement">
-          “Likely queuing” is our guess, not Bungie’s queue. Bungie doesn’t say who is matchmaking, so a player back in
-          orbit within five minutes of a PvP match shows here until the five minutes run out.
-        </p>
-        <div
-          data-ui
-          data-reveal="moment"
-          style={order(2)}
-          role="figure"
-          aria-label="Rook#2093 at the end of his match, before and after"
-          className="moment bg-ground text-ink"
-        >
-          <div className="moment-col">
-            <p className="tele px-3 py-2 text-dim">IN MATCH</p>
-            <ul className="grid gap-px bg-line">
-              <PlayerCard player={ROOK_IN_MATCH} now={SAMPLE_NOW} managing={false} />
-            </ul>
-          </div>
-          <span className="moment-arrow text-dim">
-            <Arrow size={24} />
-          </span>
-          <div className="moment-col moment-after">
-            <p className="tele px-3 py-2 text-dim">QUEUING</p>
-            <ul className="grid gap-px bg-line">
-              <PlayerCard player={ROOK_QUEUING} now={SAMPLE_NOW} managing={false} />
-            </ul>
-          </div>
+      <p data-reveal style={order(0)} className="section-sub">
+        Rook#2093, end of a match
+      </p>
+      <p data-reveal style={order(1)} className="statement">
+        “Likely queuing” is our guess, not Bungie’s queue. Bungie doesn’t say who is matchmaking, so a player back in orbit
+        within five minutes of a PvP match shows here until the five minutes run out.
+      </p>
+      <div
+        data-ui
+        data-reveal="moment"
+        style={order(2)}
+        role="figure"
+        aria-label="Rook#2093 at the end of his match, before and after"
+        className="moment"
+      >
+        <div className="moment-col tip">
+          <p className="tip-title flex justify-between">
+            Before <span className="t-head text-live-text">IN MATCH</span>
+          </p>
+          <ul className="grid gap-2 p-3">
+            <PlayerCard player={ROOK_IN_MATCH} now={SAMPLE_NOW} managing={false} />
+          </ul>
+          <p className="tip-text pt-0">Still in a match. A match lasts about ten minutes.</p>
+        </div>
+        <span className="moment-arrow">
+          <Arrow size={24} />
+        </span>
+        <div className="moment-col moment-after tip">
+          <p className="tip-title flex justify-between">
+            After <span className="t-head">QUEUING</span>
+          </p>
+          <ul className="grid gap-2 p-3">
+            <PlayerCard player={ROOK_QUEUING} now={SAMPLE_NOW} managing={false} />
+          </ul>
+          <p className="tip-text pt-0">Back in orbit. They may be queuing again.</p>
         </div>
       </div>
       <table data-reveal="picture" style={order(3)} className="states">

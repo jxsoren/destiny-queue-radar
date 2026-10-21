@@ -68,5 +68,6 @@ test('the parts of a section enter in reading order: heading, text, picture', ()
   render(<Landing />);
   const board = document.getElementById('board')!;
   const order = [...board.querySelectorAll<HTMLElement>('[data-reveal]')].map((el) => el.style.getPropertyValue('--i'));
-  expect(order).toEqual(['0', '1', '2', '3']);
+  // The sub-title and the paragraph share a step, so the order only ever rises.
+  expect(order).toEqual(['0', '1', '1', '2', '3']);
 });

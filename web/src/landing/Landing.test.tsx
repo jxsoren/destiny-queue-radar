@@ -113,3 +113,11 @@ test('how it works: finished steps are marked done, the current one is pressed',
   expect(within(how).getByRole('button', { name: 'Pick a name' })).toHaveAttribute('aria-pressed', 'true');
   expect(how.querySelectorAll('.perk-done')).toHaveLength(2);
 });
+
+test('privacy: the facts and the questions, with the warning-strip wording', () => {
+  render(<Landing />);
+  const privacy = document.getElementById('privacy')!;
+  expect(within(privacy).getByText('Up to 50 players')).toBeInTheDocument();
+  expect(within(privacy).getByText(/A warning strip on your board says so/)).toBeInTheDocument();
+  expect(within(privacy).queryByText(/stop cheaters/i)).toBeNull();
+});

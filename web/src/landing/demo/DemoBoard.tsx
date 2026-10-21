@@ -53,13 +53,13 @@ export function DemoBoard() {
             aria-pressed={paused}
             aria-label={paused ? 'Play sample board animation' : 'Pause sample board animation'}
             onClick={() => setPaused((p) => !p)}
-            className="border-2 border-ink bg-ground px-3 py-1 font-mono text-xs uppercase tracking-wider text-ink hover:bg-ink hover:text-ground focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="btn-outline t-head"
           >
             {paused ? 'PLAY' : 'PAUSE'}
           </button>
         </div>
       )}
-      <div data-ui aria-label="Sample board with made-up players" role="figure" className="bg-ground text-ink">
+      <div data-ui aria-label="Sample board with made-up players" role="figure">
         <BoardView players={players} now={now} />
       </div>
     </div>

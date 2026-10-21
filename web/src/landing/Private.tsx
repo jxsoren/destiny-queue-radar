@@ -25,45 +25,49 @@ const QUESTIONS: readonly [question: string, answer: string][] = [
   ],
   ['Will the player know I’m watching?', 'No. Nothing is sent to them and nothing about them is published.'],
   ['How many players can I watch?', '50. Remove one in Manage mode to make room.'],
-  ['What if Bungie’s API is down?', 'A red bar on your board says so, and statuses stay frozen until it’s back.'],
-  ['Does this stop cheaters?', 'No. It helps you avoid one match. Report cheating to Bungie with their own reporting tools.'],
+  ['What if Bungie’s API is down?', 'A warning strip on your board says so, and statuses stay frozen until it’s back.'],
   ['Is Queue Radar made by Bungie?', 'No. It’s independent, and not affiliated with or endorsed by Bungie.'],
 ];
 
-/** Claim 5, "Private by design": the facts beside one wide paragraph, then the real questions. */
+/** Private by design, laid out like the inspect screen's Material details (spec §5.2 item 4). */
 export function Private() {
   return (
-    <section id="privacy" aria-labelledby="privacy-title" className="about">
-      <h2 id="privacy-title" className="sr-only">
-        Privacy
+    <section id="privacy" aria-labelledby="privacy-title" className="landing-section on-mist">
+      <h2 id="privacy-title" data-reveal style={order(0)} className="section-title">
+        Private by design
       </h2>
-      <div className="about-row">
-        <p data-reveal style={order(0)} className="about-paragraph">
-          Your list is yours. Nobody else can see who you watch, and Rook#2093 is never told, contacted or flagged. There
-          are no shared lists, no report counts and no public pages about anyone. A private profile stays private: it shows
-          as Private, and we never work around it through the player’s fireteam.
-        </p>
-        <dl data-reveal style={order(1)} className="about-facts">
-          {FACTS.map(([label, value]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-      <div className="about-row about-row-questions">
-        <h2 id="questions" data-reveal style={order(0)} className="about-word">
-          Questions
-        </h2>
-        <dl className="about-questions">
-          {QUESTIONS.map(([q, a], i) => (
-            <div key={q} data-reveal style={order(1 + (i % 2))}>
-              <dt>{q}</dt>
-              <dd>{a}</dd>
-            </div>
-          ))}
-        </dl>
+      <p data-reveal style={order(0)} className="section-sub">
+        Material details
+      </p>
+      <div className="about">
+        <div>
+          <dl data-reveal style={order(1)} className="about-facts">
+            {FACTS.map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <p data-reveal style={order(1)} className="about-paragraph">
+            Your list is yours. Nobody else can see who you watch, and Rook#2093 is never told, contacted or flagged. There
+            are no shared lists and no public pages about anyone. A private profile stays private: it shows as Private, and
+            we never work around it through the player’s fireteam.
+          </p>
+        </div>
+        <div>
+          <h2 id="questions" className="sr-only">
+            Questions
+          </h2>
+          <dl className="about-questions">
+            {QUESTIONS.map(([q, a], i) => (
+              <div key={q} data-reveal style={order(1 + (i % 2))} className="tip">
+                <dt className="tip-title normal-case">{q}</dt>
+                <dd className="tip-text">{a}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </div>
     </section>
   );
