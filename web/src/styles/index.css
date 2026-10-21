@@ -69,6 +69,14 @@
   .text-shadow-strong {
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
   }
+  /* Small text on the mist gets the strong shadow (spec §8 contrast). */
+  .on-mist .t-type,
+  .on-mist .t-flavor,
+  .on-mist .t-head,
+  .on-mist .t-status,
+  .band {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  }
   .divider {
     max-width: 700px;
     margin: 16px 0;
@@ -132,7 +140,7 @@
   .band {
     position: relative;
     min-height: 56px;
-    background: linear-gradient(180deg, rgba(150, 128, 38, 0.97), rgba(128, 110, 36, 0.8));
+    background: linear-gradient(180deg, rgba(130, 110, 30, 0.97), rgba(128, 110, 36, 0.8));
     box-shadow: inset 0 -2px 0 var(--gold-edge);
   }
   .watermark {
@@ -378,15 +386,15 @@
     min-height: 34px;
   }
   .rings > i {
-    left: 70%;
-    top: 30%;
+    left: 85%;
+    top: 12%;
     transform: translate(-50%, -50%) scale(0.55);
   }
   .mist::before {
     background:
       radial-gradient(ellipse at 50% 50%, transparent 55%, var(--vignette) 100%),
-      repeating-radial-gradient(circle at 70% 30%, rgba(255, 255, 255, 0) 0 40px, rgba(255, 255, 255, 0.08) 55px, rgba(255, 255, 255, 0) 70px),
-      radial-gradient(circle at 70% 30%, var(--mist-hi) 0%, var(--mist-mid) 34%, var(--mist-lo) 72%, var(--mist-edge) 100%);
+      repeating-radial-gradient(circle at 85% 12%, rgba(255, 255, 255, 0) 0 40px, rgba(255, 255, 255, 0.08) 55px, rgba(255, 255, 255, 0) 70px),
+      radial-gradient(circle at 85% 12%, var(--mist-hi) 0%, var(--mist-mid) 34%, var(--mist-lo) 72%, var(--mist-edge) 100%);
   }
   .watermark {
     display: none;

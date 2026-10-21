@@ -8,6 +8,7 @@ export const STAT_LABELS: Record<ColumnId, string> = {
   idle: 'Not in PvP',
   offline: 'Offline',
 };
+// Mirrors store.MaxWatchlist in internal/store/store.go; change both together.
 export const WATCH_LIMIT = 50;
 
 export interface StatsBlockProps {
@@ -35,13 +36,14 @@ function Bar({ share, live, testId }: { share: number; live: boolean; testId?: s
 export function StatsBlock({ counts, filter = null, onFilter, aside, watching, label = 'Counts' }: StatsBlockProps) {
   const total = COLUMNS.reduce((n, c) => n + counts[c.id], 0);
   const share = (id: ColumnId) => (total === 0 ? 0 : Math.round((counts[id] / total) * 100));
+  const shown = watching ?? total;
   const live = (id: ColumnId) => id === 'match' && counts.match > 0;
   return (
     <section aria-label={label} className="on-mist">
       <hr className="divider" />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8">
         <p className="t-big text-[clamp(2.6rem,6vw,3.75rem)]">
-          <data value={total}>{pad2(total)}</data>
+          <data value={shown}>{pad2(shown)}</data>{' '}
           <span className="mt-1 block text-sm font-normal tracking-wide">WATCHING</span>
         </p>
         <dl
@@ -88,7 +90,7 @@ export function StatsBlock({ counts, filter = null, onFilter, aside, watching, l
           </div>
         )}
         <p data-testid="watchlist" className="t-label text-[15px]">
-          Watchlist {watching ?? total} / {WATCH_LIMIT}
+          Watchlist {shown} / {WATCH_LIMIT}
         </p>
         {aside && <div className="sm:ml-auto">{aside}</div>}
       </div>

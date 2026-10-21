@@ -66,3 +66,9 @@ test('the watchlist line shows the server size when given', () => {
   render(<BoardView players={players} now={NOW} watching={12} />);
   expect(screen.getByTestId('watchlist')).toHaveTextContent('Watchlist 12 / 50');
 });
+
+test('the big number and the watchlist row use the same count', () => {
+  const { container } = render(<BoardView players={players} now={NOW} watching={12} />);
+  expect(container.querySelector('.t-big data')).toHaveTextContent('12');
+  expect(screen.getByTestId('watchlist')).toHaveTextContent('Watchlist 12 / 50');
+});

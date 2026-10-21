@@ -6,15 +6,13 @@ export interface ColumnDef {
   id: ColumnId;
   /** Column heading. */
   title: string;
-  /** Counts bar label (spec §3.2). */
-  label: string;
 }
 
 export const COLUMNS: readonly ColumnDef[] = [
-  { id: 'match', title: 'IN MATCH', label: 'IN MATCH' },
-  { id: 'queue', title: 'QUEUING', label: 'QUEUING' },
-  { id: 'idle', title: 'NOT IN PVP', label: 'NOT IN PVP' },
-  { id: 'offline', title: 'OFFLINE', label: 'OFFLINE' },
+  { id: 'match', title: 'IN MATCH' },
+  { id: 'queue', title: 'QUEUING' },
+  { id: 'idle', title: 'NOT IN PVP' },
+  { id: 'offline', title: 'OFFLINE' },
 ];
 
 export function columnOf(state: State): ColumnId {

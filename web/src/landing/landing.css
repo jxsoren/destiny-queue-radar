@@ -93,7 +93,7 @@
 }
 .perk-tree {
   display: grid;
-  grid-template-columns: repeat(4, 66px);
+  grid-template-columns: repeat(4, minmax(0, 66px));
   grid-auto-rows: 66px;
   gap: clamp(10px, 2vw, 18px);
 }
@@ -172,6 +172,14 @@
   font-size: 12px;
 }
 @media (max-width: 639px) {
+  .perk-tree {
+    grid-auto-rows: auto;
+  }
+  .perk-tree .perk {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
   .how-stop {
     width: 72px;
   }
