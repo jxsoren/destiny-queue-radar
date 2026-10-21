@@ -1,10 +1,10 @@
 :root {
   /* Inspect-screen palette (spec §2.1). */
-  --mist-hi: #eef2ef;
-  --mist-mid: #c2cfcd;
-  --mist-lo: #8fa3a4;
-  --mist-edge: #6f8587;
-  --vignette: rgba(30, 44, 48, 0.45);
+  --mist-hi: #93a5a5;
+  --mist-mid: #74898b;
+  --mist-lo: #56696d;
+  --mist-edge: #3e4e52;
+  --vignette: rgba(18, 26, 29, 0.5);
   --ink: #ffffff;
   --ink-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   --gold-hi: #e2c440;
