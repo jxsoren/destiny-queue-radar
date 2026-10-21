@@ -1,6 +1,6 @@
-// Self-hosted fonts (spec §2): bundled by Vite, no runtime calls to Google Fonts.
-import '@fontsource/archivo-black/400.css';
-import '@fontsource/jetbrains-mono/400.css';
-import '@fontsource/jetbrains-mono/700.css';
-import '@fontsource/inter/400.css';
-import '@fontsource/inter/600.css';
+// Self-hosted fonts (spec §2.2): bundled by Vite, no runtime calls to Google Fonts.
+import '@fontsource/roboto/300.css';
+import '@fontsource/roboto/300-italic.css';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
