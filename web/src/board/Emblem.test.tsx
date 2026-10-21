@@ -23,3 +23,11 @@ test('a broken emblem falls back to a plain square', () => {
   expect(container.querySelector('img')).toBeNull();
   expect(container.querySelector('span[aria-hidden="true"]')).not.toBeNull();
 });
+
+test('data URIs that could break out of a css url("…") are refused; parentheses are fine', () => {
+  expect(emblemUrl('data:image/svg+xml,%3Csvg%20a="1"%3E')).toBeNull();
+  expect(emblemUrl('data:image/png;base64,AA\\B')).toBeNull();
+  expect(emblemUrl('data:image/png,a\nb')).toBeNull();
+  const ok = 'data:image/svg+xml,%3Csvg%20transform%3D%22scale(2)%22%2F%3E';
+  expect(emblemUrl(ok)).toBe(ok);
+});

@@ -255,6 +255,35 @@ describe('Palette accessibility and behaviour', () => {
     });
     expect(client.addWatch).toHaveBeenCalledTimes(1);
   });
+
+  test('hovering a row then arrowing leaves exactly one active option, not the hovered one', async () => {
+    const { user } = setup();
+    const vex = await screen.findByRole('option', { name: /Vex#1111/ });
+    await user.hover(vex);
+    await user.keyboard('{ArrowDown}');
+    const active = screen.getAllByRole('option').filter((o) => o.getAttribute('data-active') === 'true');
+    expect(active).toHaveLength(1);
+    expect(active[0]).not.toBe(vex);
+  });
+
+  test('a search result with an empty banner path renders an img, not a banner', async () => {
+    const search = vi.fn().mockResolvedValue({ membershipType: 3, membershipId: '9', bungieName: 'Ghost#0880', emblemPath: '/g.jpg', emblemBackgroundPath: '' });
+    const { user } = setup({ search });
+    await user.type(input(), 'Ghost#0880');
+    const ghost = await screen.findByRole('option', { name: /Ghost#0880/ });
+    expect(ghost.querySelector('img')).not.toBeNull();
+    expect(ghost.style.backgroundImage).toBe('');
+  });
+
+  test('TRACK hint appears only on the active actionable row', async () => {
+    const { user } = setup();
+    const vex = await screen.findByRole('option', { name: /Vex#1111/ });
+    const me = screen.getByRole('option', { name: /Tester#0001/ });
+    expect(me).toHaveAttribute('data-active', 'true');
+    expect(me).not.toHaveTextContent('↵ TRACK');
+    await user.keyboard('{ArrowDown}');
+    expect(vex).toHaveTextContent('↵ TRACK');
+  });
 });
 
 describe('Palette search debounce', () => {

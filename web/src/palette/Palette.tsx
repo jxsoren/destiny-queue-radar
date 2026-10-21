@@ -159,9 +159,9 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
 
   return (
     <Dialog onClose={onClose} labelledBy="palette-title" initialFocus={inputRef}>
-      <div className="band on-mist flex min-h-0 items-center gap-3 px-4 py-3">
+      <div className="band on-mist flex shrink-0 min-h-0 items-center gap-3 px-4 py-3">
         <RadarMark size={38} />
-        <h2 id="palette-title" className="t-name text-[22px]">
+        <h2 id="palette-title" className="t-name text-shadow-strong text-[22px]">
           Track a player
         </h2>
       </div>
@@ -184,7 +184,7 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
           setActive(0);
         }}
         onKeyDown={onKeyDown}
-        className="mx-4 mb-1.5 mt-3.5 block w-[calc(100%-2rem)] border-2 border-white/70 bg-white/5 px-3 py-2.5 text-[15px] text-white placeholder:italic placeholder:text-white/55 focus-visible:border-white focus-visible:outline-none"
+        className="mx-4 mb-1.5 mt-3.5 block shrink-0 w-[calc(100%-2rem)] border-2 border-white/70 bg-white/5 px-3 py-2.5 text-[15px] text-white placeholder:italic placeholder:text-white/55 focus-visible:border-white focus-visible:outline-none"
       />
       {error && (
         <p role="alert" className="t-status mx-4 mt-2 bg-[#5a1f1c]/90 px-3 py-2">
@@ -210,12 +210,12 @@ function PaletteBody({ onClose, client, watchedIds, onAdded }: PaletteProps) {
       <p role="status" aria-live="polite" className="sr-only">
         {announcement}
       </p>
-      <div id="palette-list" role="listbox" aria-label="Players" className="max-h-[60vh] overflow-y-auto">
+      <div id="palette-list" role="listbox" aria-label="Players" className="min-h-0 flex-1 overflow-y-auto">
         <Group title="YOUR LAST MATCH">{renderRows(groups.last)}</Group>
         {groups.older.length > 0 && <Group title="OLDER LOBBIES">{renderRows(groups.older)}</Group>}
         {groups.search.length > 0 && <Group title="BUNGIE SEARCH">{renderRows(groups.search)}</Group>}
       </div>
-      <p aria-hidden="true" className="mt-3 flex justify-end gap-5 bg-prompt px-4 py-2 text-[13px] text-prompt-ink">
+      <p aria-hidden="true" className="mt-3 flex shrink-0 justify-end gap-5 bg-prompt px-4 py-2 text-[13px] text-prompt-ink">
         <span>
           <PromptGlyph>↑↓</PromptGlyph>Move
         </span>
@@ -265,12 +265,12 @@ interface RowViewProps {
   onHover: () => void;
 }
 
-/** A search banner fades into the panel by 45% of the row, so the name always sits on solid charcoal. */
+/** A search banner shows its emblem art at the left; a scrim starts under the name and turns solid by 45%, matching the other rows' tone. */
 function bannerStyle(path: string): CSSProperties | undefined {
   const url = emblemUrl(path);
   if (!url) return undefined;
   return {
-    backgroundImage: `linear-gradient(90deg, rgba(58,59,57,0) 25%, rgba(58,59,57,1) 45%), url("${url}")`,
+    backgroundImage: `linear-gradient(90deg, rgba(46,47,46,0) 8%, rgba(46,47,46,0.65) 14%, var(--tip-row) 45%), url("${url}")`,
     backgroundSize: '100% 100%, auto 100%',
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'left center',
@@ -312,10 +312,10 @@ function RowView({ row, active, adding, onAct, onHover }: RowViewProps) {
       aria-label={accessibleName}
       aria-disabled={row.isSelf || row.watching}
       style={style}
-      className={`frame mx-3 mb-1.5 flex h-[52px] cursor-pointer items-center gap-3 bg-black/20 pr-3 ${style ? 'pl-16' : 'pl-2'} ${row.isSelf ? 'opacity-60' : ''}`}
+      className={`frame mx-3 mb-1.5 flex h-[52px] cursor-pointer items-center gap-3 bg-black/20 pr-3 ${style ? 'pl-16' : 'pl-2'}`}
     >
       {!style && <Emblem key={row.emblemPath} path={row.emblemPath} size={36} />}
-      <span className="text-shadow-strong min-w-0 flex-1 truncate text-[15px] font-bold">
+      <span className={`text-shadow-strong min-w-0 flex-1 truncate text-[15px] font-bold ${row.isSelf ? 'opacity-60' : ''}`}>
         {name}
         <span className="font-normal opacity-70">{code}</span>
       </span>

@@ -229,6 +229,10 @@
   .frame[data-active='true'] {
     border-color: #fff;
   }
+  /* In listboxes the active option is the only highlight; hover moves it via onMouseEnter. */
+  [role='listbox'] .frame:hover:not([data-active='true']) {
+    border-color: transparent;
+  }
   .btn-primary {
     display: inline-block;
     padding: 12px 20px;
