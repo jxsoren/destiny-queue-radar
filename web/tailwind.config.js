@@ -25,25 +25,11 @@ export default {
       stale: 'var(--stale)',
       warn: 'var(--warn)',
       scrim: 'var(--scrim)',
-      // Legacy names, removed in Task 16.
-      ground: 'var(--ground)',
-      surface: 'var(--surface)',
-      raised: 'var(--raised)',
-      line: 'var(--line)',
-      ink: 'var(--ink)',
-      dim: 'var(--ink-dim)',
-      accent: 'var(--accent)',
-      backdrop: 'var(--backdrop)',
     },
     fontFamily: {
       ui: 'var(--font-ui)',
-      // Legacy names, removed in Task 16.
-      display: 'var(--font-ui)',
-      mono: 'var(--font-ui)',
     },
-    extend: {
-      boxShadow: { edge: 'inset 4px 0 0 0 var(--live)' },
-    },
+    extend: {},
   },
   plugins: [],
 };

@@ -28,17 +28,5 @@
   --scrim: rgba(20, 28, 31, 0.62);
   --font-ui: 'Roboto', system-ui, sans-serif;
 
-  /* Legacy aliases, removed in Task 16 once no component uses them. */
-  --ground: #1c262a;
-  --surface: #232c30;
-  --raised: #2d3235;
-  --line: rgba(255, 255, 255, 0.18);
-  --ink-dim: rgba(255, 255, 255, 0.65);
-  --ink-stale: var(--stale);
-  --accent: var(--dismiss);
-  --backdrop: var(--scrim);
-  --font-display: var(--font-ui);
-  --font-mono: var(--font-ui);
-
   color-scheme: light;
 }

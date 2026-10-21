@@ -37,12 +37,12 @@ export function App({ client = defaultApi, stream }: AppProps) {
 
   switch (session.kind) {
     case 'loading':
-      return <p className="tele min-h-screen bg-ground p-6 text-dim">LOADING…</p>;
+      return <p className="t-status mist on-mist min-h-screen p-6">LOADING…</p>;
     case 'error':
       return (
-        <main className="min-h-screen bg-ground p-6 text-ink">
-          <p className="tele text-accent">CAN&apos;T REACH QUEUE RADAR</p>
-          <button type="button" onClick={load} className="tele mt-4 bg-raised px-4 py-2 hover:bg-ink hover:text-ground">
+        <main className="mist on-mist min-h-screen p-6 text-white">
+          <p className="t-status">CAN&apos;T REACH QUEUE RADAR</p>
+          <button type="button" onClick={load} className="btn-outline t-status mt-4">
             RETRY
           </button>
         </main>
