@@ -74,7 +74,7 @@ test('how it works: the slider steps through the four stops', () => {
   expect(fragment()).toHaveTextContent('Rook#2093');
 
   fireEvent.change(slider, { target: { value: '2' } });
-  expect(clause()).toBe('Pick the name you lost to');
+  expect(clause()).toBe('Pick a name');
   expect(fragment()).toHaveTextContent('ENTER TO WATCH');
   expect(fragment()).not.toHaveTextContent('CHECKING…');
 
@@ -89,7 +89,7 @@ test('how it works: the stop names move the slider too', async () => {
   const user = userEvent.setup();
   render(<Landing />);
   const how = document.getElementById('how')!;
-  await user.click(within(how).getByRole('button', { name: 'Pick the name' }));
+  await user.click(within(how).getByRole('button', { name: 'Pick a name' }));
   expect(within(how).getByRole('slider')).toHaveValue('2');
 });
 
@@ -102,4 +102,14 @@ test('the moment the match ends: Rook goes from In match to Queuing?', () => {
   expect(moment).toHaveTextContent('09:48');
   expect(moment).toHaveTextContent('ORBIT · TRIALS ENDED 1M AGO');
   expect(within(columns).getAllByRole('row')).toHaveLength(9);
+});
+
+test('how it works: finished steps are marked done, the current one is pressed', () => {
+  render(<Landing />);
+  const how = document.getElementById('how')!;
+  fireEvent.change(within(how).getByRole('slider'), { target: { value: '2' } });
+  expect(within(how).getByRole('button', { name: 'Match ends (done)' })).toBeInTheDocument();
+  expect(within(how).getByRole('button', { name: 'Press / (done)' })).toBeInTheDocument();
+  expect(within(how).getByRole('button', { name: 'Pick a name' })).toHaveAttribute('aria-pressed', 'true');
+  expect(how.querySelectorAll('.perk-done')).toHaveLength(2);
 });
