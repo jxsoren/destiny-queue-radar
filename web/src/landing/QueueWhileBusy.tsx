@@ -16,7 +16,7 @@ const STATES: readonly [state: string, sees: string, sure: string, todo: string]
   ['Stale', 'The last good answer is more than three minutes old', 'Out of date', 'Treat the column as a hint until it updates.'],
 ];
 
-/** Claim 4, "Queue while they're busy": Rook's card as his match ends, then what every state means. */
+/** The queue window (spec §5.2 item 3): Rook's card as his match ends, then what every state means. */
 export function QueueWhileBusy() {
   return (
     <section id="columns" aria-labelledby="columns-title" className="landing-section on-mist">

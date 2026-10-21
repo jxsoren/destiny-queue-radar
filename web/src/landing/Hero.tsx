@@ -7,7 +7,7 @@ import { PREVIEW_IN_MATCH, PREVIEW_QUEUING, SAMPLE_NOW } from './fragments/sampl
 import { PerkTree } from './PerkTree';
 
 // Sample counts that match the preview (spec §5.1).
-const SAMPLE_COUNTS = { match: 3, queue: 2, idle: 2, offline: 1 };
+const SAMPLE_COUNTS = { match: 2, queue: 1, idle: 3, offline: 2 };
 
 /** The first screen: Queue Radar presented as an exotic item, with a live-looking board preview. */
 export function Hero() {

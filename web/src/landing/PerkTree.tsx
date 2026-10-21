@@ -78,7 +78,6 @@ export function PerkTree() {
             key={p.id}
             type="button"
             aria-label={p.name}
-            aria-pressed={p.id === open}
             aria-describedby={p.id === open ? tipId(p.id) : undefined}
             onMouseEnter={() => setOpen(p.id)}
             onFocus={() => setOpen(p.id)}

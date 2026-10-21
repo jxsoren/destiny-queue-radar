@@ -24,6 +24,19 @@
   text-transform: uppercase;
 }
 
+.section-sub,
+.how-stop,
+.how-note,
+.site-foot,
+.hero .band a,
+.landing-section .text-\[14px\],
+.landing-section .text-\[12px\] {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+.section-sub {
+  font-weight: 400;
+}
+
 /* First screen (spec §5.1). */
 .hero-grid {
   display: grid;
@@ -71,7 +84,7 @@
   display: grid;
   grid-template-columns: repeat(4, 66px);
   grid-auto-rows: 66px;
-  gap: 18px;
+  gap: clamp(10px, 2vw, 18px);
 }
 @media (min-width: 640px) {
   .perk-tree {
@@ -116,6 +129,7 @@
   top: 31px;
   height: 4px;
   appearance: none;
+  pointer-events: none;
   background: linear-gradient(90deg, var(--done) calc(var(--progress, 0) * 100%), rgba(255, 255, 255, 0.3) 0);
 }
 .how-range::-webkit-slider-thumb {
@@ -137,7 +151,6 @@
   position: relative;
   display: flex;
   justify-content: space-between;
-  pointer-events: none;
 }
 .how-stop {
   display: flex;
@@ -146,7 +159,19 @@
   gap: 8px;
   width: 90px;
   font-size: 12px;
-  pointer-events: auto;
+}
+@media (max-width: 639px) {
+  .how-stop {
+    width: 72px;
+  }
+  .how-range {
+    left: 36px;
+    right: 36px;
+  }
+}
+.how-control:has(.how-range:focus-visible) .perk-selected {
+  outline: 3px solid #fff;
+  box-shadow: 0 0 0 6px rgba(0, 0, 0, 0.55);
 }
 .how-node {
   font-weight: 700;
@@ -195,6 +220,16 @@
 @media (min-width: 768px) {
   .moment {
     grid-template-columns: 1fr auto 1fr;
+  }
+}
+.moment-arrow {
+  display: flex;
+  justify-content: center;
+  transform: rotate(90deg);
+}
+@media (min-width: 768px) {
+  .moment-arrow {
+    transform: none;
   }
 }
 .statement {

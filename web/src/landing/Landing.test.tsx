@@ -53,7 +53,11 @@ test('the first screen is the item: name, type line, quoted flavour and the pitc
 
 test('no cheater framing anywhere on the page', () => {
   const { container } = render(<Landing />);
-  expect(container.textContent ?? '').not.toMatch(/cheat|lost to|beat you|suspect/i);
+  const banned = /cheat|lost to|beat you|suspect|rival|dodg|report count/i;
+  expect(container.textContent ?? '').not.toMatch(banned);
+  for (const el of container.querySelectorAll('[aria-label]')) {
+    expect(el.getAttribute('aria-label') ?? '').not.toMatch(banned);
+  }
 });
 
 test('how it works: the slider steps through the four stops', () => {
@@ -120,4 +124,13 @@ test('privacy: the facts and the questions, with the warning-strip wording', () 
   expect(within(privacy).getByText('Up to 50 players')).toBeInTheDocument();
   expect(within(privacy).getByText(/A warning strip on your board says so/)).toBeInTheDocument();
   expect(within(privacy).queryByText(/stop cheaters/i)).toBeNull();
+});
+
+test('sample counts match the preview cards', () => {
+  render(<Landing />);
+  const counts = screen.getByRole('region', { name: 'Sample counts' });
+  expect(within(counts).getByTestId('count-match')).toHaveTextContent(/^2$/);
+  expect(within(counts).getByTestId('count-queue')).toHaveTextContent(/^1$/);
+  const figure = screen.getByRole('figure', { name: 'Sample players in a match and queuing' });
+  expect(within(figure).getAllByRole('listitem')).toHaveLength(3);
 });

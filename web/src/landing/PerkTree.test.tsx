@@ -6,7 +6,6 @@ import { PerkTree } from './PerkTree';
 test('Lobby Recall is selected and described by its tooltip, with the cost row', () => {
   render(<PerkTree />);
   const recall = screen.getByRole('button', { name: 'Lobby Recall' });
-  expect(recall).toHaveAttribute('aria-pressed', 'true');
   expect(recall).toHaveAccessibleDescription(/Press \/ after a match/);
   expect(screen.getByRole('tooltip')).toHaveTextContent('Bungie sign-in');
 });
